@@ -1,12 +1,22 @@
-/*	This is pstree V1.9 written by Fred Hucht (c) 1993/96	*
+/*	This is pstree written by Fred Hucht (c) 1993/96	*
  *	EMail: fred@thp.Uni-Duisburg.DE				*
  *	Feel free to copy and redistribute in terms of the	*
- * 	GNU public license. 					*/
+ * 	GNU public license. 					*
+ *
+ * $Id: pstree.c,v 1.4 1996-09-17 21:43:14+02 fred Exp $
+ *
+ * $Log: pstree.c,v $
+ * Revision 1.4  1996-09-17 21:43:14+02  fred
+ * Moved under RCS, replace \n and \t with ?
+ *
+ *
+ */
 
-static char *WhatString[2]= {
+static char *WhatString[]= {
   "@(#)pstree V1.9.1 by Fred Hucht (C) 1993-95",
-  "@(#)EMail:fred@thp.Uni-Duisburg.DE"
-  };
+  "@(#)EMail:fred@thp.Uni-Duisburg.DE",
+  "$Id: pstree.c,v 1.4 1996-09-17 21:43:14+02 fred Exp $"
+};
 
 #define MAXLINE 256
 
@@ -146,6 +156,10 @@ int getprocs() {
       ci = strlen(c);
       while(ci > 0 && c[ci-1] == ' ') ci--;
       c[ci] = '\0';
+      
+      /* Replace some unprintables with '?' */
+      for(ci = 0; c[ci] != '\0'; ci++)
+	if(c[ci] == '\n' || c[ci] == '\t') c[ci] = '?';
       
       /* Insert [ui_comm] when getargs returns nothing */
       if(c[0] == '\0') {
