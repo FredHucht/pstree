@@ -4,7 +4,7 @@
  * 	GNU public license. 					*/
 
 static char *WhatString[2]= {
-  "@(#)pstree V1.9 by Fred Hucht (C) 1993-95",
+  "@(#)pstree V1.9.1 by Fred Hucht (C) 1993-95",
   "@(#)EMail:fred@thp.Uni-Duisburg.DE"
   };
 
