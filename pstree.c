@@ -3,9 +3,12 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 1.4 1996-09-17 21:43:14+02 fred Exp $
+ * $Id: pstree.c,v 1.10 1996-09-17 21:45:35+02 fred Exp fred $
  *
  * $Log: pstree.c,v $
+ * Revision 1.10  1996-09-17 21:45:35+02  fred
+ * replace \n and \t with ? in output
+ *
  * Revision 1.4  1996-09-17 21:43:14+02  fred
  * Moved under RCS, replace \n and \t with ?
  *
@@ -13,9 +16,9 @@
  */
 
 static char *WhatString[]= {
-  "@(#)pstree V1.9.1 by Fred Hucht (C) 1993-95",
+  "@(#)pstree $Revision:$ by Fred Hucht (C) 1993-95",
   "@(#)EMail:fred@thp.Uni-Duisburg.DE",
-  "$Id: pstree.c,v 1.4 1996-09-17 21:43:14+02 fred Exp $"
+  "$Id: pstree.c,v 1.10 1996-09-17 21:45:35+02 fred Exp fred $"
 };
 
 #define MAXLINE 256
