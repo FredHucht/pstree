@@ -3,9 +3,12 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.2 1997-02-04 14:11:17+01 fred Exp fred $
+ * $Id: pstree.c,v 2.3 1997-02-04 18:40:54+01 fred Exp fred $
  *
  * $Log: pstree.c,v $
+ * Revision 2.3  1997-02-04 18:40:54+01  fred
+ * Cosmetic
+ *
  * Revision 2.2  1997-02-04 14:11:17+01  fred
  * *** empty log message ***
  *
@@ -31,9 +34,9 @@
  */
 
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.2 $ by Fred Hucht (C) 1993-95",
+  "@(#)pstree $Revision: 2.3 $ by Fred Hucht (C) 1993-95",
   "@(#)EMail:fred@thp.Uni-Duisburg.DE",
-  "$Id: pstree.c,v 2.2 1997-02-04 14:11:17+01 fred Exp fred $"
+  "$Id: pstree.c,v 2.3 1997-02-04 18:40:54+01 fred Exp fred $"
 };
 
 #define MAXLINE 256
@@ -133,9 +136,8 @@ struct Proc_ {
 } *P;
 
 #if defined(_AIX) || defined(___AIX)	/* AIX 3.x */
-
 #define NPROCS 10000
-int getprocs() {
+int getprocs(void) {
   struct procinfo proc[NPROCS];
   struct userinfo user;
   int i;
@@ -204,7 +206,7 @@ int getprocs() {
 
 #else /* _AIX */
 
-int getprocs() {
+int getprocs(void) {
   FILE *tn;
   int len, i = 0;  extern int errno; /* For popen() */
 #ifdef UID2USER
@@ -239,6 +241,8 @@ int getprocs() {
       fprintf(stderr, "Problems with realloc.\n");
       exit(1);
     }
+    
+    memset(&P[i], 0, sizeof(*P));
     
 #ifdef sparc
     { /* SunOS allows columns to run together.  With the -j option, the CPU
