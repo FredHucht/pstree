@@ -1,89 +1,14 @@
-/*	This is pstree written by Fred Hucht (c) 1993-2002	*
+/*	This is pstree written by Fred Hucht (c) 1993-2003	*
  *	EMail: fred@thp.Uni-Duisburg.DE				*
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.17 2000-03-01 10:42:22+01 fred Exp fred $
- *
- * $Log: pstree.c,v $
- * Revision 2.17  2001-12-13 08:27:00+08  chris
- * Added workaround for AIX Version >= 5
- *
- * Revision 2.16  2000-03-01 10:42:22+01  fred
- * Added support for thread count (thcount) in other OSs than AIX
- *
- * Revision 2.15  2000-03-01 10:18:56+01  fred
- * Added process group support for {Net|Open}BSD following a suggestion
- * by Ralf Meyer <ralf@thp.Uni-Duisburg.de>
- *
- * Revision 2.14  1999-03-22 20:45:02+01  fred
- * Fixed bug when line longer than MAXLINE, set MAXLINE=512
- *
- * Revision 2.13  1998-12-17 19:31:53+01  fred
- * Fixed problem with option -f when input file is empty
- *
- * Revision 2.12  1998-12-07 17:08:59+01  fred
- * Added -f option and sun 68000 support by Paul Kern
- * <pkern@utcc.utoronto.ca>
- *
- * Revision 2.11  1998-05-23 13:30:28+02  fred
- * Added vt100 sequences, NetBSD support
- *
- * Revision 2.10  1998-02-02 15:04:57+01  fred
- * Fixed bug in MakeTree()/get_pid_index() when parent doesn't
- * exist. Thanks to Igor Schein <igor@andrew.air-boston.com> for the bug
- * report.
- *
- * Revision 2.9  1998-01-07 16:55:26+01  fred
- * Added support for getprocs()
- *
- * Revision 2.9  1998-01-06 17:13:19+01  fred
- * Added support for getprocs() under AIX
- *
- * Revision 2.8  1997-10-22 15:09:39+02  fred
- * Cosmetic
- *
- * Revision 2.7  1997-10-22 15:01:40+02  fred
- * Minor changes in getprocs for AIX
- *
- * Revision 2.6  1997/10/16 16:35:19  fred
- * Added uid2name() caching username lookup, added patch for Solaris 2.x
- *
- * Revision 2.5  1997-02-05 14:24:53+01  fred
- * return PrintTree when nothing to do.
- *
- * Revision 2.4  1997/02/05 09:54:08  fred
- * Fixed bug when P[i].cmd is empty
- *
- * Revision 2.3  1997-02-04 18:40:54+01  fred
- * Cosmetic
- *
- * Revision 2.2  1997-02-04 14:11:17+01  fred
- * *** empty log message ***
- *
- * Revision 2.1  1997-02-04 13:55:14+01  fred
- * Rewritten
- *
- * Revision 1.13  1997-02-04 09:01:59+01  fred
- * Start of rewrite
- *
- * Revision 1.12  1996-09-17 21:54:05+02  fred
- * *** empty log message ***
- *
- * Revision 1.11  1996-09-17 21:52:52+02  fred
- * revision added
- *
- * Revision 1.10  1996-09-17 21:45:35+02  fred
- * replace \n and \t with ? in output
- *
- * Revision 1.4  1996-09-17 21:43:14+02  fred
- * Moved under RCS, replace \n and \t with ?
+ * $Id: pstree.c,v 2.17 2001/12/17 12:18:02 fred Exp fred $
  */
-
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.16 $ by Fred Hucht (C) 1993-2002",
+  "@(#)pstree $Revision: 2.17 $ by Fred Hucht (C) 1993-2003",
   "@(#)EMail:fred@thp.Uni-Duisburg.de",
-  "$Id: pstree.c,v 2.16 2000-03-01 10:42:22+01 fred Exp fred $"
+  "$Id: pstree.c,v 2.17 2001/12/17 12:18:02 fred Exp fred $"
 };
 
 #define MAXLINE 512
@@ -122,19 +47,17 @@ extern getargs(struct ProcInfo *, int, char *, int);
 #  define PSCMD 	"ps -eko uid,pid,ppid,pgid,thcount,args"
 #  define PSFORMAT 	"%ld %ld %ld %ld %ld %[^\n]"
 #  define PSVARS	&P[i].uid, &P[i].pid, &P[i].ppid, &P[i].pgid, &P[i].thcount, P[i].cmd
-
+/************************************************************************/
 #elif defined(__linux)	/* Linux */
 #  define USE_GetProcessesDirect
 #  define HAS_PGID
 #  include <glob.h>
 #  include <sys/stat.h>
 #  define UID2USER
-/*#  define PSCMD 	"ps laxw"
-  #  define PSFORMAT 	"%*d %ld %ld %ld %*37c %*s %[^\n]"*/
 #  define PSCMD 	"ps -eo uid,pid,ppid,pgid,args"
 #  define PSFORMAT 	"%ld %ld %ld %ld %[^\n]"
 #  define PSVARS	&P[i].uid, &P[i].pid, &P[i].ppid, &P[i].pgid, P[i].cmd
-/* #elif defined(sparc)	SunOS */
+/************************************************************************/
 #elif defined(sun) && (!defined(__SVR4)) /* Solaris 1.x */
 /* contributed by L. Mark Larsen <mlarsen@ptdcs2.intel.com> */
 /* new cpp criteria by Pierre Belanger <belanger@risq.qc.ca> */
@@ -151,38 +74,46 @@ extern getargs(struct ProcInfo *, int, char *, int);
 #    define PSFORMAT 	"%ld %ld %*d %*d %*s %*d %*s %ld %*s %[^\n]"
 #    define PSVARS 	&P[i].ppid, &P[i].pid, &P[i].uid, P[i].cmd
 #  endif
+/************************************************************************/
 #elif defined(sun) && (defined(__SVR4)) /* Solaris 2.x */
 /* contributed by Pierre Belanger <belanger@risq.qc.ca> */
 #  define solaris2x
 #  define PSCMD         "ps -ef"
 #  define PSFORMAT      "%s %ld %ld %*d %*s %*s %*s %[^\n]"
+/************************************************************************/
 #elif defined(bsdi)
 /* contributed by Dean Gaudet <dgaudet@hotwired.com> */
 #  define UID2USER
 #  define PSCMD 	"ps laxw"
 #  define PSFORMAT 	"%ld %ld %ld %*d %*d %*d %*d %*d %*s %*s %*s %*s %[^\n]"
+/************************************************************************/
 #elif defined(__FreeBSD__) /* FreeBSD  */
 /* FreeBSD contributed by Randall Hopper <rhh@ct.picker.com> */
 #  define PSCMD 	"ps -axo \"user pid ppid command\""
 #  define PSFORMAT 	"%s %d %d %[^\n]"
+/************************************************************************/
 #elif defined(_BSD)	/* Untested */
 #  define UID2USER
 #  define PSCMD 	"ps laxw"
 #  define PSFORMAT 	"%*d %*c %ld %ld %ld %*d %*d %*d %*x %*d %d %*15c %*s %[^\n]"
+/************************************************************************/
 #elif defined(__convex)	/* ConvexOS */
 #  define UID2USER
 #  define PSCMD 	"ps laxw"
 #  define PSFORMAT 	"%*s %ld %ld %ld %*d %*g %*d %*d %*21c %*s %[^\n]"
+/************************************************************************/
 #elif defined(__NetBSD__) || defined(__OpenBSD__)
 /* NetBSD contributed by Gary D. Duzan <gary@wheel.tiac.net> */
 #  define HAS_PGID
 #  define PSCMD 	"ps -axwwo user,pid,ppid,pgid,command"
 #  define PSFORMAT 	"%s %ld %ld %ld %[^\n]"
 #  define PSVARS	P[i].name, &P[i].pid, &P[i].ppid, &P[i].pgid, P[i].cmd
+/************************************************************************/
 #else			/* HP-UX, A/UX etc. */
 #  define PSCMD 	"ps -ef"
 #  define PSFORMAT 	"%s %ld %ld %*20c %*s %[^\n]"
 #endif
+/*********************** end of configurable part ***********************/
 
 #ifndef PSVARS 		/* Set default */
 # ifdef UID2USER
@@ -208,22 +139,31 @@ static char *strstr(char *, char *);
 #endif
 
 struct TreeChars {
-  char *s2, 		/* String between header and pid */
-    *p, 		/* dito, when parent of printed childs */
-    *pgl,		/* Process group leader */
-    *npgl,		/* No process group leader */
-    *barc, 		/* bar for line with child */
-    *bar, 		/* bar for line without child */
-    *barl,		/* bar for last child */
-    *sg,		/* Start graphics (alt char set) */
-    *eg,		/* End graphics (alt char set) */
-    *init;		/* Init string sent at the beginning */
+  char *s2, 		/* SS String between header and pid */
+    *p, 		/* PP dito, when parent of printed childs */
+    *pgl,		/* G  Process group leader */
+    *npgl,		/* N  No process group leader */
+    *barc, 		/* C  bar for line with child */
+    *bar, 		/* B  bar for line without child */
+    *barl,		/* L  bar for last child */
+    *sg,		/*    Start graphics (alt char set) */
+    *eg,		/*    End graphics (alt char set) */
+    *init;		/*    Init string sent at the beginning */
 };
+
+/* Example:
+ * |-+- 01111 ...        CPPN 01111 ...
+ * | \-+=   01112 ...    B LPPG 01112 ...
+ * |   |--= 01113 ...    B   CSSG 01113 ...
+ * |   \--= 01114 ...    B   LSSG 01114 ...
+ * \-+- 01115 ...        LSSN 01115 ...
+ */
 
 enum { G_ASCII = 0, G_PC850 = 1, G_VT100 = 2, G_LAST };
 
 /* VT sequences contributed by Randall Hopper <rhh@ct.picker.com> */
 static struct TreeChars TreeChars[] = {
+  /* SS          PP          G       N       C       B       L      sg      eg      init */
   { "--",       "-+",       "=",    "-",    "|",    "|",    "\\",   "",     "",     ""             }, /*Ascii*/
   { "\304\304", "\304\302", "\372", "\304", "\303", "\263", "\300", "",     "",     ""             }, /*Pc850*/
   { "qq",       "qw",       "`",    "q",    "t",    "x",    "m",    "\016", "\017", "\033(B\033)0" }  /*Vt100*/
@@ -410,7 +350,7 @@ int GetProcessesDirect(void) {
   }
   
   for (i = 0; i < globbuf.gl_pathc; i++) {
-    char name[32], line[MAXLINE], c;
+    char name[32], c;
     FILE *tn;
     struct stat stat;
     int k = 0;
@@ -418,7 +358,7 @@ int GetProcessesDirect(void) {
     sprintf(name, "%s%s",
 	    globbuf.gl_pathv[globbuf.gl_pathc - i - 1], "/stat");
     tn = fopen(name, "r");
-    fscanf(tn, "%d %s %*c %d %d",
+    fscanf(tn, "%ld %s %*c %ld %ld",
 	   &P[i].pid, P[i].cmd, &P[i].ppid, &P[i].pgid);
     fstat(fileno(tn), &stat);
     P[i].uid = stat.st_uid;
@@ -437,7 +377,7 @@ int GetProcessesDirect(void) {
     
 #ifdef DEBUG
     if (debug) fprintf(stderr,
-		       "uid=%5ld, name=%8s, pid=%5ld, ppid=%5ld, pgid=%5ld, thcount=%d, cmd='%s'\n",
+		       "uid=%5ld, name=%8s, pid=%5ld, ppid=%5ld, pgid=%5ld, thcount=%ld, cmd='%s'\n",
 		       P[i].uid, P[i].name, P[i].pid, P[i].ppid, P[i].pgid, P[i].thcount, P[i].cmd);
 #endif
     P[i].parent = P[i].child = P[i].sister = -1;
@@ -450,9 +390,9 @@ int GetProcessesDirect(void) {
 
 int GetProcesses(void) {
   FILE *tn;
-  int len, i = 0;  extern int errno; /* For popen() */
-#ifdef UID2USER
-  int xx; /* For testing... */
+  int len, i = 0;
+#ifdef DEBUG
+  extern int errno; /* For popen() */
 #endif
   char line[MAXLINE], command[] = PSCMD;
   
@@ -534,7 +474,7 @@ int GetProcesses(void) {
 
 #ifdef DEBUG
     if (debug) fprintf(stderr,
-		      "uid=%5ld, name=%8s, pid=%5ld, ppid=%5ld, pgid=%5ld, thcount=%d, cmd='%s'\n",
+		      "uid=%5ld, name=%8s, pid=%5ld, ppid=%5ld, pgid=%5ld, thcount=%ld, cmd='%s'\n",
 		      P[i].uid, P[i].name, P[i].pid, P[i].ppid, P[i].pgid, P[i].thcount, P[i].cmd);
 #endif
     P[i].parent = P[i].child = P[i].sister = -1;
@@ -559,67 +499,68 @@ int get_pid_index(long pid) {
 void MakeTree(void) {
   /* Build the process hierarchy. Every process marks itself as first child
    * of it's parent or as sister of first child of it's parent */
-  int i, idx;
-  
-  for (i = 0; i < NProc; i++) {
-    idx = get_pid_index(P[i].ppid);
-    if (idx != i && idx != -1) { /* valid process, not me */
-      P[i].parent = idx;
-      if (P[idx].child == -1)
-	P[idx].child = i;
+  int me;  
+  for (me = 0; me < NProc; me++) {
+    int parent;
+    parent = get_pid_index(P[me].ppid);
+    if (parent != me && parent != -1) { /* valid process, not me */
+      P[me].parent = parent;
+      if (P[parent].child == -1) /* first child */
+	P[parent].child = me;
       else {
-	for (idx = P[idx].child; EXIST(P[idx].sister); idx = P[idx].sister);
-	P[idx].sister = i;
+	int sister;
+	for (sister = P[parent].child; EXIST(P[sister].sister); sister = P[sister].sister);
+	P[sister].sister = me;
       }
     }
   }
 }
 
 void MarkChildren(int i) {
-  int idx;
+  int child;
   P[i].print = TRUE;
-  for (idx = P[i].child; EXIST(idx); idx = P[idx].sister)
-    MarkChildren(idx);
+  for (child = P[i].child; EXIST(child); child = P[child].sister)
+    MarkChildren(child);
 }
 
 void MarkProcs(void) {
-  int i;
-  for (i = 0; i < NProc; i++) {
+  int me;
+  for (me = 0; me < NProc; me++) {
     if (showall) {
-      P[i].print = TRUE;
+      P[me].print = TRUE;
     } else {
       int parent;
-      if (0 == strcmp(P[i].name, name) 		/* for -u */
+      if (0 == strcmp(P[me].name, name)		/* for -u */
 	 || (Uoption &&
-	     0 != strcmp(P[i].name, "root"))	/* for -U */
-	 || P[i].pid == ipid			/* for -p */
+	     0 != strcmp(P[me].name, "root"))	/* for -U */
+	 || P[me].pid == ipid			/* for -p */
 	 || (soption
-	     && NULL != strstr(P[i].cmd, str)
-	     && P[i].pid != MyPid)		/* for -s */
+	     && NULL != strstr(P[me].cmd, str)
+	     && P[me].pid != MyPid)		/* for -s */
 	 ) {
 	/* Mark parents */
-	for (parent = P[i].parent; EXIST(parent); parent = P[parent].parent) {
+	for (parent = P[me].parent; EXIST(parent); parent = P[parent].parent) {
 	  P[parent].print = TRUE;
 	}
 	/* Mark children */
-	MarkChildren(i);
+	MarkChildren(me);
       }
     }
   }
 }
 
 void DropProcs(void) {
-  int i;
-  for (i = 0; i < NProc; i++) if (P[i].print) {
-    int idx;
+  int me;
+  for (me = 0; me < NProc; me++) if (P[me].print) {
+    int child, sister;
     /* Drop children that won't print */
-    for (idx = P[i].child;
-	EXIST(idx) && !P[idx].print; idx = P[idx].sister);
-    P[i].child = idx;
+    for (child = P[me].child;
+	 EXIST(child) && !P[child].print; child = P[child].sister);
+    P[me].child = child;
     /* Drop sisters that won't print */
-    for (idx = P[i].sister;
-	EXIST(idx) && !P[idx].print; idx = P[idx].sister);
-    P[i].sister = idx;
+    for (sister = P[me].sister;
+	 EXIST(sister) && !P[sister].print; sister = P[sister].sister);
+    P[me].sister = sister;
   }
 }
 
@@ -778,7 +719,8 @@ int main(int argc, char **argv) {
 #ifdef HAS_TERMDEF
     Columns = atoi((char*)termdef(fileno(stdout),'c'));
 #else
-    Columns = 80;
+    char *env = getenv("COLUMNS");
+    Columns = env ? atoi(env) : 80;
 #endif
   }
   if (Columns == 0 || Columns >= MAXLINE) Columns = MAXLINE - 1;
@@ -818,3 +760,83 @@ static char * strstr(s1, s2)
   return NULL;
 }
 #endif /* NEED_STRSTR */
+
+/*
+ * $Log: pstree.c,v $
+ * Revision 2.17  2001/12/17 12:18:02  fred
+ * Changed ps call to something like ps -eo uid,pid,ppid,pgid,args under
+ * AIX and Linux, workaround for AIX 5L.
+ *
+ * Revision 2.17  2001-12-13 08:27:00+08  chris
+ * Added workaround for AIX Version >= 5
+ *
+ * Revision 2.16  2000-03-01 10:42:22+01  fred
+ * Added support for thread count (thcount) in other OSs than AIX
+ *
+ * Revision 2.15  2000-03-01 10:18:56+01  fred
+ * Added process group support for {Net|Open}BSD following a suggestion
+ * by Ralf Meyer <ralf@thp.Uni-Duisburg.de>
+ *
+ * Revision 2.14  1999-03-22 20:45:02+01  fred
+ * Fixed bug when line longer than MAXLINE, set MAXLINE=512
+ *
+ * Revision 2.13  1998-12-17 19:31:53+01  fred
+ * Fixed problem with option -f when input file is empty
+ *
+ * Revision 2.12  1998-12-07 17:08:59+01  fred
+ * Added -f option and sun 68000 support by Paul Kern
+ * <pkern@utcc.utoronto.ca>
+ *
+ * Revision 2.11  1998-05-23 13:30:28+02  fred
+ * Added vt100 sequences, NetBSD support
+ *
+ * Revision 2.10  1998-02-02 15:04:57+01  fred
+ * Fixed bug in MakeTree()/get_pid_index() when parent doesn't
+ * exist. Thanks to Igor Schein <igor@andrew.air-boston.com> for the bug
+ * report.
+ *
+ * Revision 2.9  1998-01-07 16:55:26+01  fred
+ * Added support for getprocs()
+ *
+ * Revision 2.9  1998-01-06 17:13:19+01  fred
+ * Added support for getprocs() under AIX
+ *
+ * Revision 2.8  1997-10-22 15:09:39+02  fred
+ * Cosmetic
+ *
+ * Revision 2.7  1997-10-22 15:01:40+02  fred
+ * Minor changes in getprocs for AIX
+ *
+ * Revision 2.6  1997/10/16 16:35:19  fred
+ * Added uid2name() caching username lookup, added patch for Solaris 2.x
+ *
+ * Revision 2.5  1997-02-05 14:24:53+01  fred
+ * return PrintTree when nothing to do.
+ *
+ * Revision 2.4  1997/02/05 09:54:08  fred
+ * Fixed bug when P[i].cmd is empty
+ *
+ * Revision 2.3  1997-02-04 18:40:54+01  fred
+ * Cosmetic
+ *
+ * Revision 2.2  1997-02-04 14:11:17+01  fred
+ * *** empty log message ***
+ *
+ * Revision 2.1  1997-02-04 13:55:14+01  fred
+ * Rewritten
+ *
+ * Revision 1.13  1997-02-04 09:01:59+01  fred
+ * Start of rewrite
+ *
+ * Revision 1.12  1996-09-17 21:54:05+02  fred
+ * *** empty log message ***
+ *
+ * Revision 1.11  1996-09-17 21:52:52+02  fred
+ * revision added
+ *
+ * Revision 1.10  1996-09-17 21:45:35+02  fred
+ * replace \n and \t with ? in output
+ *
+ * Revision 1.4  1996-09-17 21:43:14+02  fred
+ * Moved under RCS, replace \n and \t with ?
+ */
