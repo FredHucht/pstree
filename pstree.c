@@ -1,14 +1,14 @@
-/*	This is pstree written by Fred Hucht (c) 1993-2003	*
+/*	This is pstree written by Fred Hucht (c) 1993-2004	*
  *	EMail: fred AT thp.Uni-Duisburg.de			*
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.21 2003-10-06 13:55:47+02 fred Exp fred $
+ * $Id: pstree.c,v 2.22 2003-12-12 10:58:46+01 fred Exp fred $
  */
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.21 $ by Fred Hucht (C) 1993-2003",
+  "@(#)pstree $Revision: 2.22 $ by Fred Hucht (C) 1993-2004",
   "@(#)EMail: fred AT thp.Uni-Duisburg.de",
-  "$Id: pstree.c,v 2.21 2003-10-06 13:55:47+02 fred Exp fred $"
+  "$Id: pstree.c,v 2.22 2003-12-12 10:58:46+01 fred Exp fred $"
 };
 
 #define MAXLINE 512
@@ -47,28 +47,32 @@ extern getargs(struct ProcInfo *, int, char *, int);
 #  define PSFORMAT 	"%ld %ld %ld %ld %ld %[^\n]"
 #  define PSVARS	&P[i].uid, &P[i].pid, &P[i].ppid, &P[i].pgid, &P[i].thcount, P[i].cmd
 /************************************************************************/
-#elif defined(__linux)	/* Linux */
-#  define USE_GetProcessesDirect
-#  define HAS_PGID
-#  include <glob.h>
-#  include <sys/stat.h>
+#elif defined(__linux) || (defined __alpha && defined(_SYSTYPE_BSD))
+/* TRU64 contributed by Frank Parkin <fparki AT acxiom.co.uk>
+ */
+#  ifdef __linux
+#    define USE_GetProcessesDirect
+#    include <glob.h>
+#    include <sys/stat.h>
+#  endif
 #  define UID2USER
+#  define HAS_PGID
 #  define PSCMD 	"ps -eo uid,pid,ppid,pgid,args"
 #  define PSFORMAT 	"%ld %ld %ld %ld %[^\n]"
 #  define PSVARS	&P[i].uid, &P[i].pid, &P[i].ppid, &P[i].pgid, P[i].cmd
 /************************************************************************/
-#elif defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__APPLE__) || (defined __alpha && defined(_SYSTYPE_BSD))
+#elif defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__APPLE__)
 /* NetBSD contributed by Gary D. Duzan <gary AT wheel.tiac.net>
  * FreeBSD contributed by Randall Hopper <rhh AT ct.picker.com> 
  * Darwin / Mac OS X patch by Yuji Yamano <yyamano AT kt.rim.or.jp>
  * wide output format fix for NetBSD by Jeff Brown <jabrown AT caida.org>
  * (Net|Open|Free)BSD & Darwin merged by Ralf Meyer <ralf AT thp.Uni-Duisburg.DE>
- * TRU64 contributed by Frank Parkin <fparki AT acxiom.co.uk>
  */
 #  define HAS_PGID
 #  define PSCMD 	"ps -axwwo user,pid,ppid,pgid,command"
 #  define PSFORMAT 	"%s %ld %ld %ld %[^\n]"
 #  define PSVARS	P[i].name, &P[i].pid, &P[i].ppid, &P[i].pgid, P[i].cmd
+#  define ZOMBIES_HAVE_PID_0
 /************************************************************************/
 #elif defined(sun) && (!defined(__SVR4)) /* Solaris 1.x */
 /* contributed by L. Mark Larsen <mlarsen AT ptdcs2.intel.com> */
@@ -359,8 +363,8 @@ int GetProcessesDirect(void) {
     struct stat stat;
     int k = 0;
     
-    sprintf(name, "%s%s",
-	    globbuf.gl_pathv[globbuf.gl_pathc - i - 1], "/stat");
+    snprintf(name, sizeof(name), "%s%s",
+	     globbuf.gl_pathv[globbuf.gl_pathc - i - 1], "/stat");
     tn = fopen(name, "r");
     if (tn == NULL) continue; /* process vanished since glob() */
     fscanf(tn, "%ld %s %*c %ld %ld",
@@ -370,8 +374,8 @@ int GetProcessesDirect(void) {
     fclose(tn);
     P[j].thcount = 1;
     
-    sprintf(name, "%s%s",
-	    globbuf.gl_pathv[globbuf.gl_pathc - i - 1], "/cmdline");
+    snprintf(name, sizeof(name), "%s%s",
+	     globbuf.gl_pathv[globbuf.gl_pathc - i - 1], "/cmdline");
     tn = fopen(name, "r");
     if (tn == NULL) continue;
     while (k < MAXLINE - 1 && EOF != (c = fgetc(tn))) {
@@ -467,7 +471,7 @@ int GetProcesses(void) {
       char buf1[45], buf2[MAXLINE];
       buf1[44] = '\0';
       sscanf(line, "%44c%[^\n]", buf1, buf2);
-      sprintf(line, "%s %s", buf1, buf2);
+      snprintf(line, sizeof(line), "%s %s", buf1, buf2);
     }
 #endif
     
@@ -494,15 +498,15 @@ int GetProcesses(void) {
 }
 
 int GetRootPid(void) {
-  int i;
-  for (i = 0; i < NProc; i++) {
-    if (P[i].pid == -1) return P[i].pid;
+  int me;
+  for (me = 0; me < NProc; me++) {
+    if (P[me].pid == -1) return P[me].pid;
   }
   /* PID == 1 not found, so we'll take process with PPID == 0
    * Fix for TRU64 TruCluster with uniq PIDs
    * reported by Frank Parkin <fparki AT acxiom.co.uk> */
-  for (i = 0; i < NProc; i++) {
-    if (P[i].ppid == 0) return P[i].pid;
+  for (me = 0; me < NProc; me++) {
+    if (P[me].ppid == 0) return P[me].pid;
   }
   /* Should not happen */
   fprintf(stderr,
@@ -511,10 +515,29 @@ int GetRootPid(void) {
   exit(1);
 }
 
+#ifdef ZOMBIES_HAVE_PID_0
+void FixZombies(void) {
+  int me, num = 0;
+  for (me = 0; me < NProc; me++) {
+    if (P[me].pid == 0) num++;
+  }
+  if (num > 1) for (me = 0; me < NProc; me++) {
+    if (P[me].pid == 0 && P[me].ppid != 0 && P[me].ppid != -1) {
+      P[me].pid = -1;
+#ifdef DEBUG
+      if (debug) fprintf(stderr,
+			 "fixed zombie %s with ppid %d\n",
+			 P[me].cmd, P[me].ppid);
+#endif
+    }
+  }
+}
+#endif
+
 int get_pid_index(long pid) {
-  int i;
-  for (i = NProc - 1;i >= 0 && P[i].pid != pid; i--); /* Search process */
-  return i;
+  int me;
+  for (me = NProc - 1;me >= 0 && P[me].pid != pid; me--); /* Search process */
+  return me;
 }
 
 #define EXIST(idx) ((idx) != -1)
@@ -539,10 +562,10 @@ void MakeTree(void) {
   }
 }
 
-void MarkChildren(int i) {
+void MarkChildren(int me) {
   int child;
-  P[i].print = TRUE;
-  for (child = P[i].child; EXIST(child); child = P[child].sister)
+  P[me].print = TRUE;
+  for (child = P[me].child; EXIST(child); child = P[child].sister)
     MarkChildren(child);
 }
 
@@ -611,27 +634,27 @@ void PrintTree(int idx, const char *head) {
   
   if (head[0] == '\0' && !P[idx].print) return;
   
-  if (P[idx].thcount > 1) sprintf(thread, "[%ld]", P[idx].thcount);
+  if (P[idx].thcount > 1) snprintf(thread, sizeof(thread), "[%ld]", P[idx].thcount);
   
-  sprintf(out,
-	  "%s%s%s%s%s%s %05ld %s %s%s" /*" (ch=%d, si=%d, pr=%d)"*/,
-	  C->sg,
-	  head,
-	  head[0] == '\0' ? "" : EXIST(P[idx].sister) ? C->barc : C->barl,
-	  EXIST(P[idx].child)       ? C->p   : C->s2,
-	  P[idx].pid == P[idx].pgid ? C->pgl : C->npgl,
-	  C->eg,
-	  P[idx].pid, P[idx].name,
-	  thread,
-	  P[idx].cmd
-	  /*,P[idx].child,P[idx].sister,P[idx].print*/);
+  snprintf(out, sizeof(out),
+	   "%s%s%s%s%s%s %05ld %s %s%s" /*" (ch=%d, si=%d, pr=%d)"*/,
+	   C->sg,
+	   head,
+	   head[0] == '\0' ? "" : EXIST(P[idx].sister) ? C->barc : C->barl,
+	   EXIST(P[idx].child)       ? C->p   : C->s2,
+	   P[idx].pid == P[idx].pgid ? C->pgl : C->npgl,
+	   C->eg,
+	   P[idx].pid, P[idx].name,
+	   thread,
+	   P[idx].cmd
+	   /*,P[idx].child,P[idx].sister,P[idx].print*/);
   
   out[Columns-1] = '\0';
   puts(out);
   
   /* Process children */
-  sprintf(nhead, "%s%s ", head,
-	  head[0] == '\0' ? "" : EXIST(P[idx].sister) ? C->bar : " ");
+  snprintf(nhead, sizeof(nhead), "%s%s ", head,
+	   head[0] == '\0' ? "" : EXIST(P[idx].sister) ? C->bar : " ");
   
   for (child = P[idx].child; EXIST(child); child = P[child].sister)
     PrintTree(child, nhead);
@@ -744,6 +767,10 @@ int main(int argc, char **argv) {
   NProc = GetProcesses();
 #endif
   
+#ifdef ZOMBIES_HAVE_PID_0
+  FixZombies();
+#endif
+  
   if (NProc == 0) {
     fprintf(stderr, "%s: No processes read.\n", Progname);
     exit(1);
@@ -816,6 +843,9 @@ static char * strstr(s1, s2)
 
 /*
  * $Log: pstree.c,v $
+ * Revision 2.22  2003-12-12 10:58:46+01  fred
+ * Added support for TRU64 v5.1b TruCluster
+ *
  * Revision 2.21  2003-10-06 13:55:47+02  fred
  * Fixed SEGV under Linux when process table changes during run
  *
