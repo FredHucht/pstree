@@ -3,12 +3,12 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.24 2004-04-14 09:10:29+02 fred Exp fred $
+ * $Id: pstree.c,v 2.25 2004-05-14 16:41:39+02 fred Exp fred $
  */
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.24 $ by Fred Hucht (C) 1993-2004",
+  "@(#)pstree $Revision: 2.25 $ by Fred Hucht (C) 1993-2004",
   "@(#)EMail: fred AT thp.Uni-Duisburg.de",
-  "$Id: pstree.c,v 2.24 2004-04-14 09:10:29+02 fred Exp fred $"
+  "$Id: pstree.c,v 2.25 2004-05-14 16:41:39+02 fred Exp fred $"
 };
 
 #define MAXLINE 512
@@ -352,7 +352,7 @@ int GetProcessesDirect(void) {
 #ifdef __linux
 int GetProcessesDirect(void) {
   glob_t globbuf;
-  int i, j;
+  unsigned int i, j;
   
   glob("/proc/[0-9]*", GLOB_NOSORT, NULL, &globbuf);
   
@@ -363,7 +363,8 @@ int GetProcessesDirect(void) {
   }
   
   for (i = j = 0; i < globbuf.gl_pathc; i++) {
-    char name[32], c;
+    char name[32];
+    int c;
     FILE *tn;
     struct stat stat;
     int k = 0;
@@ -859,6 +860,10 @@ static char * strstr(s1, s2)
 
 /*
  * $Log: pstree.c,v $
+ * Revision 2.25  2004-05-14 16:41:39+02  fred
+ * Added workaround for spurious blank lines in ps output under AIX 5.2
+ * reported by Dean Rowswell <rowswell AT ca.ibm.com>
+ *
  * Revision 2.24  2004-04-14 09:10:29+02  fred
  * *** empty log message ***
  *
