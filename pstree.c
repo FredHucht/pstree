@@ -3,9 +3,12 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 1.11 1996-09-17 21:52:52+02 fred Exp fred $
+ * $Id: pstree.c,v 1.12 1996-09-17 21:54:05+02 fred Exp fred $
  *
  * $Log: pstree.c,v $
+ * Revision 1.12  1996-09-17 21:54:05+02  fred
+ * *** empty log message ***
+ *
  * Revision 1.11  1996-09-17 21:52:52+02  fred
  * revision added
  *
@@ -19,9 +22,9 @@
  */
 
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 1.11 $ by Fred Hucht (C) 1993-95",
+  "@(#)pstree $Revision: 1.12 $ by Fred Hucht (C) 1993-95",
   "@(#)EMail:fred@thp.Uni-Duisburg.DE",
-  "$Id: pstree.c,v 1.11 1996-09-17 21:52:52+02 fred Exp fred $"
+  "$Id: pstree.c,v 1.12 1996-09-17 21:54:05+02 fred Exp fred $"
 };
 
 #define MAXLINE 256
@@ -117,7 +120,8 @@ struct {
   long uid, pid, ppid;
   int pgl;
   char name[9], cmd[MAXLINE];
-  int  parent, child, pchilds, level;
+  int  isparent, ischild, pchilds, level;
+  long child, sister;
 } *p;
 
 #if defined(_AIX) || defined(___AIX)	/* AIX 3.x */
@@ -178,12 +182,15 @@ int getprocs() {
     }
 #ifdef DEBUG
     if(debug) fprintf(stderr,
-		      "%d: uid=%5ld, name=%8s, pid=%5ld, ppid=%5ld, pgl=%d, cmd[%d]='%s'\n",
+		      "%d: uid=%5ld, name=%8s, pid=%5ld, ppid=%5ld, pgl=%d, tsize=%u, dvm=%u, cmd[%d]='%s'\n",
 		      i, p[i].uid, p[i].name, p[i].pid, p[i].ppid,
-		      p[i].pgl, strlen(p[i].cmd),p[i].cmd);
+		      p[i].pgl,
+		      user.ui_tsize, user.ui_dvm,
+		      strlen(p[i].cmd),p[i].cmd);
 #endif
-    p[i].parent = p[i].child = FALSE;
+    p[i].isparent = p[i].ischild = FALSE;
     p[i].pchilds = 0;
+    p[i].child = p[i].sister = 0;
   }
   return nproc;
 }
@@ -250,8 +257,9 @@ int getprocs() {
 		      "uid=%5ld, name=%8s, pid=%5ld, ppid=%5ld, cmd='%s'\n",
 		      p[i].uid, p[i].name, p[i].pid, p[i].ppid, p[i].cmd);
 #endif
-    p[i].parent = p[i].child = p[i].pgl = FALSE;
+    p[i].isparent = p[i].ischild = p[i].pgl = FALSE;
     p[i].pchilds = 0;
+    p[i].child = p[i].sister = 0;
     i++;
   }
   pclose(tn);
@@ -267,6 +275,34 @@ int get_pid_index(long pid) {
   return i;
 }
 
+#if 0
+NEW VERSION
+void maketree(void) {
+  /* Build the process hierarchy. Every process marks itself as first child
+   * of it's parent or as sister of first child of it's parent */
+  int i, idx;
+  for(i = 0; i < NProc; i++) {
+    idx = get_pid_index(p[i].ppid);
+    if(p[idx].child == 0)
+      p[idx].child = i;
+    else {
+      idx = p[idx].child;
+      while(p[idx].sister) idx = p[idx].sister;
+      p[idx].sister = i;
+    }
+  }
+}
+
+void printtree(int idx, int level) {
+  printf("%d %d %d\n",
+	 level, p[idx].ppid, p[idx].pid);
+  if(p[idx].child)
+    printtree(p[idx].child, level + 1);
+  if(p[idx].sister)
+    printtree(p[idx].sister, level);
+}
+#endif
+
 int pstree1(long pid, int level) {
   int i, j;
   i = get_pid_index(pid);
@@ -279,22 +315,22 @@ int pstree1(long pid, int level) {
      || (soption
 	 && NULL != strstr(p[i].cmd, str)
 	 && p[i].pid != MyPid)			/* for -s */
-     ) p[i].parent = p[i].child = TRUE;
+     ) p[i].isparent = p[i].ischild = TRUE;
 
   p[i].level = level;
   
   if(p[i].pid == MyPid) return 0; /* Ignore my children (sh, ps)... */
   
   for(j=0; j<NProc; j++) if(IS_CHILD(j, pid)) {
-    p[j].child   = p[i].child;  /* set if parent user matches */
+    p[j].ischild   = p[i].ischild;  /* set if parent user matches */
     if(pstree1(p[j].pid, level + 1))  /* call me */
       fprintf(stderr, "This should not happen. pid=%ld\n",p[j].pid);
-    p[i].parent |= p[j].parent; /* set if child user matches */
+    p[i].isparent |= p[j].isparent; /* set if child user matches */
   }
   return 0;
 }
 
-#define IS_PRINTED(i) (showall || p[i].child || p[i].parent)
+#define IS_PRINTED(i) (showall || p[i].ischild || p[i].isparent)
 
 void pstree2(long pid, const char *head) {
   int i, j, headL, nheadL;
@@ -363,7 +399,10 @@ void pstree2(long pid, const char *head) {
 
 void Pstree(long pid) {
   int i, r;
-  
+#if 0
+  maketree();
+  printtree(get_pid_index(pid), 0);
+#endif
   r = pstree1(pid, 0); /* Pass 1 */
   
   if(r) {
@@ -449,6 +488,8 @@ int main(int argc, char **argv) {
       if(NULL == getpwnam(name)) {
 	fprintf(stderr, "%s: User '%s' does not exist.\n",
 		Progname, name);
+	/* fprintf(stderr, "%s: 4711-815 Unbekannt sind die Leute.\n",
+	   Progname); */
 	exit(1);
       }
       break;;
