@@ -1,11 +1,14 @@
-/*	This is pstree written by Fred Hucht (c) 1993/96	*
+/*	This is pstree written by Fred Hucht (c) 1993-1997	*
  *	EMail: fred@thp.Uni-Duisburg.DE				*
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.4 1997/02/05 09:54:08 fred Exp fred $
+ * $Id: pstree.c,v 2.5 1997-02-05 14:24:53+01 fred Exp fred $
  *
  * $Log: pstree.c,v $
+ * Revision 2.5  1997-02-05 14:24:53+01  fred
+ * return PrintTree when nothing to do.
+ *
  * Revision 2.4  1997/02/05 09:54:08  fred
  * Fixed bug when P[i].cmd is empty
  *
@@ -37,9 +40,9 @@
  */
 
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.4 $ by Fred Hucht (C) 1993-95",
+  "@(#)pstree $Revision: 2.5 $ by Fred Hucht (C) 1993-1997",
   "@(#)EMail:fred@thp.Uni-Duisburg.DE",
-  "$Id: pstree.c,v 2.4 1997/02/05 09:54:08 fred Exp fred $"
+  "$Id: pstree.c,v 2.5 1997-02-05 14:24:53+01 fred Exp fred $"
 };
 
 #define MAXLINE 256
@@ -50,6 +53,9 @@ static char *WhatString[]= {
 #  define UID2USER
 #  define _ALL_SOURCE
 #  include <procinfo.h>
+extern getproc(struct procinfo *, int, int);
+extern getargs(struct procinfo *, int, char *, int);
+extern getuser(struct procinfo *, int, void *, int);
 /*
  * #define PSCMD 	"ps -ekf"
  * #define PSFORMAT 	"%s %ld %ld %*20c %*s %[^\n]"
@@ -59,12 +65,21 @@ static char *WhatString[]= {
 #  define UID2USER
 #  define PSCMD 	"ps laxw"
 #  define PSFORMAT 	"%*d %ld %ld %ld %*35c %*s %[^\n]"
-#elif defined(sparc)	/* SunOS */
+/* #elif defined(sparc)	SunOS */
+#elif defined(sun) && (!defined(__SVR4)) /* Solaris 1.x */
 /* contributed by L. Mark Larsen <mlarsen@ptdcs2.intel.com> */
+/* new cpp criteria by Pierre Belanger <belanger@risq.qc.ca> */
+#  define solaris1x
 #  define UID2USER
 #  define PSCMD 	"ps jaxw"
 #  define PSFORMAT 	"%ld %ld %*d %*d %*s %*d %*s %ld %*s %[^\n]"
 #  define PSVARS 	&P[i].ppid, &P[i].pid, &P[i].uid, P[i].cmd
+#elif defined(sun) && (defined(__SVR4)) /* Solaris 2.x */
+/* contributed by Pierre Belanger <belanger@risq.qc.ca> */
+#  define solaris2x
+#  define PSCMD         "ps -ef"
+#  define PSFORMAT      "%s %ld %ld %*d %*s %*s %*s %[^\n]"
+#  define PSVARS        &P[i].name, &P[i].pid, &P[i].ppid, P[i].cmd
 #elif defined(bsdi)
 /* contributed by Dean Gaudet <dgaudet@hotwired.com> */
 #  define UID2USER
@@ -98,7 +113,6 @@ static char *WhatString[]= {
 
 #ifdef UID2USER
 #include <pwd.h>
-struct passwd *pw;
 #endif
 
 #ifndef TRUE
@@ -138,6 +152,42 @@ struct Proc_ {
   long parent, child, sister;
 } *P;
 
+#ifdef UID2USER
+
+void uid2name(uid_t uid, char * name, int len) {
+#define NUMUN 32
+  static struct un_ {
+    uid_t uid;
+    char name[9];
+  } un[NUMUN];
+  static short n = 0;
+  short i;
+  char * found;
+#ifdef DEBUG
+  if(name == NULL) {
+    for(i = 0; i < n; i++)
+      fprintf(stderr, "uid = %3d, name = %s\n", un[i].uid, un[i].name);
+    return;
+  }
+#endif  
+  for(i = n - 1; i >= 0 && un[i].uid != uid; i--);
+  if(i >= 0) { /* found locally */
+    found = un[i].name;
+  } else {
+    struct passwd *pw = getpwuid(uid);
+    found = pw->pw_name;
+    if(n < NUMUN) {
+      un[n].uid = uid;
+      strncpy(un[n].name, found, 9);
+      un[n].name[8] = '\0';
+      n++;
+    }
+  }
+  strncpy(name, found, len);
+  name[len-1] = '\0';
+}
+#endif
+
 #if defined(_AIX) || defined(___AIX)	/* AIX 3.x */
 #define NPROCS 10000
 int getprocs(void) {
@@ -160,8 +210,7 @@ int getprocs(void) {
     P[i].ppid = proc[i].pi_ppid;
     P[i].pgl  = proc[i].pi_pid == proc[i].pi_pgrp;
     
-    pw = getpwuid(P[i].uid);
-    strcpy(P[i].name, pw->pw_name);
+    uid2name(P[i].uid, P[i].name, sizeof(P[i].name));
     
     if(proc[i].pi_stat == SZOMB) {
       strcpy(P[i].cmd, "<defunct>");
@@ -247,11 +296,12 @@ int getprocs(void) {
     
     memset(&P[i], 0, sizeof(*P));
     
-#ifdef sparc
+#ifdef solaris1x
     { /* SunOS allows columns to run together.  With the -j option, the CPU
        * time used can run into the numeric user id, so make sure there is
        * space between these two columns.  Also, the order of the desired
-       * items is different. */
+       * items is different. (L. Mark Larsen <mlarsen@ptdcs2.intel.com>)
+       */
       char buf1[45], buf2[MAXLINE];
       buf1[44] = '\0';
       sscanf(line, "%44c%[^\n]", buf1, buf2);
@@ -262,8 +312,7 @@ int getprocs(void) {
     sscanf(line, PSFORMAT, PSVARS);
     
 #ifdef UID2USER	/* get username */
-    pw = getpwuid(P[i].uid);
-    strcpy(P[i].name, pw->pw_name);
+    uid2name(P[i].uid, P[i].name, sizeof(P[i].name));
 #endif
 
 #ifdef DEBUG
@@ -394,7 +443,7 @@ void Usage(void) {
 	  "[-g] [-u user] [-U] [-s string] [-p pid] [-w] [pid ...]\n"
 	  /*"   -a        align output\n"*/
 #ifdef DEBUG
-	  "   -d        print debugging info\n"
+	  "   -d        print debugging info to stderr\n"
 #endif
 	  "   -g        use IBM-850 graphics chars for tree\n"
 	  "   -u user   show only parts containing processes of <user>\n"
@@ -445,7 +494,11 @@ int main(int argc, char **argv) {
     case 'u':
       showall = FALSE;
       name    = optarg;
-      if(NULL == getpwnam(name)) {
+      if(
+#ifdef solaris2x
+	 (int)
+#endif
+	 NULL == getpwnam(name)) {
 	fprintf(stderr, "%s: User '%s' does not exist.\n",
 		Progname, name);
 	exit(1);
@@ -466,6 +519,9 @@ int main(int argc, char **argv) {
     }
   
   NProc = getprocs();
+#if defined(UID2USER) && defined(DEBUG)
+  if(debug) uid2name(0,NULL,0);
+#endif
   MyPid = getpid();
   if(wide)
     Columns = MAXLINE - 1;
