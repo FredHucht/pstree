@@ -3,12 +3,12 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.19 2003/05/26 15:33:35 fred Exp fred $
+ * $Id: pstree.c,v 2.20 2003-07-09 20:07:29+02 fred Exp fred $
  */
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.19 $ by Fred Hucht (C) 1993-2003",
+  "@(#)pstree $Revision: 2.20 $ by Fred Hucht (C) 1993-2003",
   "@(#)EMail: fred AT thp.Uni-Duisburg.de",
-  "$Id: pstree.c,v 2.19 2003/05/26 15:33:35 fred Exp fred $"
+  "$Id: pstree.c,v 2.20 2003-07-09 20:07:29+02 fred Exp fred $"
 };
 
 #define MAXLINE 512
@@ -126,6 +126,10 @@ extern getargs(struct ProcInfo *, int, char *, int);
 #include <string.h>		/* For str...() */
 #include <unistd.h>		/* For getopt() */
 #include <pwd.h>		/* For getpwnam() */
+
+#ifdef DEBUG
+# include <errno.h>
+#endif
 
 #ifdef NEED_STRSTR
 static char *strstr(char *, char *);
@@ -337,7 +341,7 @@ int GetProcessesDirect(void) {
 #ifdef __linux
 int GetProcessesDirect(void) {
   glob_t globbuf;
-  int i;
+  int i, j;
   
   glob("/proc/[0-9]*", GLOB_NOSORT, NULL, &globbuf);
   
@@ -347,7 +351,7 @@ int GetProcessesDirect(void) {
     exit(1);
   }
   
-  for (i = 0; i < globbuf.gl_pathc; i++) {
+  for (i = j = 0; i < globbuf.gl_pathc; i++) {
     char name[32], c;
     FILE *tn;
     struct stat stat;
@@ -356,42 +360,43 @@ int GetProcessesDirect(void) {
     sprintf(name, "%s%s",
 	    globbuf.gl_pathv[globbuf.gl_pathc - i - 1], "/stat");
     tn = fopen(name, "r");
+    if (tn == NULL) continue; /* process vanished since glob() */
     fscanf(tn, "%ld %s %*c %ld %ld",
-	   &P[i].pid, P[i].cmd, &P[i].ppid, &P[i].pgid);
+	   &P[j].pid, P[j].cmd, &P[j].ppid, &P[j].pgid);
     fstat(fileno(tn), &stat);
-    P[i].uid = stat.st_uid;
+    P[j].uid = stat.st_uid;
     fclose(tn);
+    P[j].thcount = 1;
     
     sprintf(name, "%s%s",
 	    globbuf.gl_pathv[globbuf.gl_pathc - i - 1], "/cmdline");
     tn = fopen(name, "r");
+    if (tn == NULL) continue;
     while (k < MAXLINE - 1 && EOF != (c = fgetc(tn))) {
-      P[i].cmd[k++] = c == '\0' ? ' ' : c;
+      P[j].cmd[k++] = c == '\0' ? ' ' : c;
     }
-    if (k > 0) P[i].cmd[k] = '\0';
+    if (k > 0) P[j].cmd[k] = '\0';
     fclose(tn);
     
-    uid2user(P[i].uid, P[i].name, sizeof(P[i].name));
+    uid2user(P[j].uid, P[j].name, sizeof(P[j].name));
     
 #ifdef DEBUG
     if (debug) fprintf(stderr,
 		       "uid=%5ld, name=%8s, pid=%5ld, ppid=%5ld, pgid=%5ld, thcount=%ld, cmd='%s'\n",
-		       P[i].uid, P[i].name, P[i].pid, P[i].ppid, P[i].pgid, P[i].thcount, P[i].cmd);
+		       P[j].uid, P[j].name, P[j].pid, P[j].ppid, P[j].pgid, P[j].thcount, P[j].cmd);
 #endif
-    P[i].parent = P[i].child = P[i].sister = -1;
-    P[i].print  = FALSE;
+    P[j].parent = P[j].child = P[j].sister = -1;
+    P[j].print  = FALSE;
+    j++;
   }
   globfree(&globbuf);
-  return i;
+  return j;
 }
 #endif /* __linux */
 
 int GetProcesses(void) {
   FILE *tn;
   int len, i = 0;
-#ifdef DEBUG
-  extern int errno; /* For popen() */
-#endif
   char line[MAXLINE], command[] = PSCMD;
   
   /* file read code contributed by Paul Kern <pkern AT utcc.utoronto.ca> */
@@ -544,6 +549,24 @@ void MarkProcs(void) {
 	MarkChildren(me);
       }
     }
+#if 0 /* experimental thread compression */
+    {
+      int parent = P[me].parent;
+      int ancestor; /* oldest parent with same cmd */
+      if (0 == strcmp(P[me].cmd, P[parent].cmd)) {
+	P[me].print = FALSE;
+	for (parent = P[me].parent;
+	     EXIST(parent) && (0 == strcmp(P[me].cmd, P[parent].cmd));
+	     parent = P[parent].parent) {
+	  ancestor = parent;
+	}
+	fprintf(stderr, "%d: %d\n",
+		P[me].pid,
+		P[ancestor].pid);
+	P[ancestor].thcount++;
+      }
+    }
+#endif
   }
 }
 
@@ -761,6 +784,9 @@ static char * strstr(s1, s2)
 
 /*
  * $Log: pstree.c,v $
+ * Revision 2.20  2003-07-09 20:07:29+02  fred
+ * cosmetic
+ *
  * Revision 2.19  2003/05/26 15:33:35  fred
  * Merged FreeBSD, (Open|Net)BSD; added Darwin (APPLE), fixed wide output
  * in FreeBSD
