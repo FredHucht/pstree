@@ -1,10 +1,10 @@
-/*	This is pstree V1.8 written by Fred Hucht (c) 1993/96	*
+/*	This is pstree V1.9 written by Fred Hucht (c) 1993/96	*
  *	EMail: fred@thp.Uni-Duisburg.DE				*
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*/
 
 static char *WhatString[2]= {
-  "@(#)pstree V1.8 by Fred Hucht (C) 1993-95",
+  "@(#)pstree V1.9 by Fred Hucht (C) 1993-95",
   "@(#)EMail:fred@thp.Uni-Duisburg.DE"
   };
 
