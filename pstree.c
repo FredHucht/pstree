@@ -3,12 +3,12 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.22 2003-12-12 10:58:46+01 fred Exp fred $
+ * $Id: pstree.c,v 2.23 2004-02-16 10:55:20+01 fred Exp fred $
  */
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.22 $ by Fred Hucht (C) 1993-2004",
+  "@(#)pstree $Revision: 2.23 $ by Fred Hucht (C) 1993-2004",
   "@(#)EMail: fred AT thp.Uni-Duisburg.de",
-  "$Id: pstree.c,v 2.22 2003-12-12 10:58:46+01 fred Exp fred $"
+  "$Id: pstree.c,v 2.23 2004-02-16 10:55:20+01 fred Exp fred $"
 };
 
 #define MAXLINE 512
@@ -504,7 +504,9 @@ int GetRootPid(void) {
   }
   /* PID == 1 not found, so we'll take process with PPID == 0
    * Fix for TRU64 TruCluster with uniq PIDs
-   * reported by Frank Parkin <fparki AT acxiom.co.uk> */
+   * reported by Frank Parkin <fparki AT acxiom.co.uk>
+   * re-reported by Eric van Doorn <Eric.van.Doorn AT isc.politie.nl>,
+   * because fix was not published by me :-/ */
   for (me = 0; me < NProc; me++) {
     if (P[me].ppid == 0) return P[me].pid;
   }
@@ -843,6 +845,9 @@ static char * strstr(s1, s2)
 
 /*
  * $Log: pstree.c,v $
+ * Revision 2.23  2004-02-16 10:55:20+01  fred
+ * Fix for zombies (pid == 0) under FreeBSD
+ *
  * Revision 2.22  2003-12-12 10:58:46+01  fred
  * Added support for TRU64 v5.1b TruCluster
  *
