@@ -3,9 +3,12 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.5 1997-02-05 14:24:53+01 fred Exp fred $
+ * $Id: pstree.c,v 2.6 1997/10/16 16:35:19 fred Exp fred $
  *
  * $Log: pstree.c,v $
+ * Revision 2.6  1997/10/16 16:35:19  fred
+ * Added uid2name() caching username lookup, added patch for Solaris 2.x
+ *
  * Revision 2.5  1997-02-05 14:24:53+01  fred
  * return PrintTree when nothing to do.
  *
@@ -40,9 +43,9 @@
  */
 
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.5 $ by Fred Hucht (C) 1993-1997",
+  "@(#)pstree $Revision: 2.6 $ by Fred Hucht (C) 1993-1997",
   "@(#)EMail:fred@thp.Uni-Duisburg.DE",
-  "$Id: pstree.c,v 2.5 1997-02-05 14:24:53+01 fred Exp fred $"
+  "$Id: pstree.c,v 2.6 1997/10/16 16:35:19 fred Exp fred $"
 };
 
 #define MAXLINE 256
@@ -79,7 +82,6 @@ extern getuser(struct procinfo *, int, void *, int);
 #  define solaris2x
 #  define PSCMD         "ps -ef"
 #  define PSFORMAT      "%s %ld %ld %*d %*s %*s %*s %[^\n]"
-#  define PSVARS        &P[i].name, &P[i].pid, &P[i].ppid, P[i].cmd
 #elif defined(bsdi)
 /* contributed by Dean Gaudet <dgaudet@hotwired.com> */
 #  define UID2USER
@@ -144,7 +146,7 @@ long ipid = -1;
 int debug = FALSE;
 #endif
 
-struct Proc_ {
+struct Proc {
   long uid, pid, ppid;
   int pgl;
   char name[9], cmd[MAXLINE];
@@ -153,16 +155,15 @@ struct Proc_ {
 } *P;
 
 #ifdef UID2USER
-
-void uid2name(uid_t uid, char * name, int len) {
-#define NUMUN 32
+void uid2name(uid_t uid, char *name, int len) {
+#define NUMUN 128
   static struct un_ {
     uid_t uid;
     char name[9];
   } un[NUMUN];
   static short n = 0;
   short i;
-  char * found;
+  char *found;
 #ifdef DEBUG
   if(name == NULL) {
     for(i = 0; i < n; i++)
@@ -189,14 +190,33 @@ void uid2name(uid_t uid, char * name, int len) {
 #endif
 
 #if defined(_AIX) || defined(___AIX)	/* AIX 3.x */
-#define NPROCS 10000
 int getprocs(void) {
-  struct procinfo proc[NPROCS];
+  int i, nproc, maxnproc = 1024;
+  struct procinfo *proc = malloc(maxnproc * sizeof(struct procinfo));
   struct userinfo user;
-  int i;
-  int nproc = getproc(proc,NPROCS,sizeof(struct procinfo));
   
-  if( NULL == (P = malloc( (nproc+1) * sizeof(*P) ))) {
+  if(proc == NULL) {
+    fprintf(stderr, "Problems with malloc.\n");
+    exit(1);
+  }
+  
+  do {
+    nproc = getproc(proc, maxnproc, sizeof(struct procinfo));
+#ifdef DEBUG
+    if(debug) printf("nproc = %d maxnproc = %d\n", nproc, maxnproc);
+#endif
+    if(nproc == -1) { /* More than maxnproc processes found */
+      maxnproc *= 2;
+      proc = realloc(proc, maxnproc * sizeof(struct procinfo));
+      if(proc == NULL) {
+	fprintf(stderr, "Problems with malloc.\n");
+	exit(1);
+      }
+    }
+  } while(nproc == -1);
+  
+  P = malloc((nproc+1) * sizeof(struct Proc));
+  if(P == NULL) {
     fprintf(stderr, "Problems with malloc.\n");
     exit(1);
   }
@@ -253,6 +273,7 @@ int getprocs(void) {
     P[i].parent = P[i].child = P[i].sister = -1;
     P[i].print = FALSE;
   }
+  free(proc);
   return nproc;
 }
 
@@ -279,7 +300,8 @@ int getprocs(void) {
   if(debug) fputs(line, stderr);
 #endif
   
-  if( NULL == (P = malloc( sizeof(*P) ))) {
+  P = malloc(sizeof(struct Proc));
+  if(P == NULL) {
     fprintf(stderr, "Problems with malloc.\n");
     exit(1);
   }
@@ -289,7 +311,8 @@ int getprocs(void) {
     if(debug) {fprintf(stderr, "len=%3d ", len); fputs(line, stderr);}
 #endif
     
-    if( NULL == (P = realloc(P, (i+1) * sizeof(*P) ))) {
+    P = realloc(P, (i+1) * sizeof(struct Proc));
+    if(P == NULL) {
       fprintf(stderr, "Problems with realloc.\n");
       exit(1);
     }
