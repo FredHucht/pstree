@@ -3,9 +3,12 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 1.12 1996-09-17 21:54:05+02 fred Exp fred $
+ * $Id: pstree.c,v 1.13 1997-02-04 09:01:59+01 fred Exp fred $
  *
  * $Log: pstree.c,v $
+ * Revision 1.13  1997-02-04 09:01:59+01  fred
+ * Start of rewrite
+ *
  * Revision 1.12  1996-09-17 21:54:05+02  fred
  * *** empty log message ***
  *
@@ -22,9 +25,9 @@
  */
 
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 1.12 $ by Fred Hucht (C) 1993-95",
+  "@(#)pstree $Revision: 1.13 $ by Fred Hucht (C) 1993-95",
   "@(#)EMail:fred@thp.Uni-Duisburg.DE",
-  "$Id: pstree.c,v 1.12 1996-09-17 21:54:05+02 fred Exp fred $"
+  "$Id: pstree.c,v 1.13 1997-02-04 09:01:59+01 fred Exp fred $"
 };
 
 #define MAXLINE 256
@@ -92,18 +95,19 @@ struct passwd *pw;
 #endif
 
 struct TreeChars {
-  char *s1, 		/* String to intend */
-       *s2, 		/* String between header and pid */
-       *p, 		/* dito, when parent of printed childs */
-        pgl,		/* Process group leader */
-        npgl,		/* No process group leader */
-        c, 		/* Last char of s1 for line with child */
-        e;		/* Last char of s1 for last child */
+  char /**s1, 		 String to indent */
+  *s2, 		/* String between header and pid */
+    *p, 		/* dito, when parent of printed childs */
+    pgl,		/* Process group leader */
+    npgl,		/* No process group leader */
+    barc, 		/* bar for line with child */
+    bar, 		/* bar for line without child */
+    barl;		/* bar for last child */
 };
 
 static struct TreeChars
-  Ascii = { " |",    "--",       "-+",       '=',    '-',    '|',    '\\' },
-  Pc850 = { " \263", "\304\304", "\304\302", '\315', '\304', '\303', '\300' },
+  Ascii = { /*"  ",*/    "--",       "-+",       '=',    '-',    '}',    '|',    '\\'   },
+  Pc850 = { /*" \263",*/ "\304\304", "\304\302", '\315', '\304', '\303', '\263', '\300' },
   *c;
 
 int MyPid, NProc, Ns1, Maxlevel = 0, Alignlen, Columns;
@@ -120,8 +124,8 @@ struct {
   long uid, pid, ppid;
   int pgl;
   char name[9], cmd[MAXLINE];
-  int  isparent, ischild, pchilds, level;
-  long child, sister;
+  int  /*isparent, ischild, pchilds, level, */ print;
+  long parent, child, sister;
 } *p;
 
 #if defined(_AIX) || defined(___AIX)	/* AIX 3.x */
@@ -188,9 +192,10 @@ int getprocs() {
 		      user.ui_tsize, user.ui_dvm,
 		      strlen(p[i].cmd),p[i].cmd);
 #endif
-    p[i].isparent = p[i].ischild = FALSE;
-    p[i].pchilds = 0;
-    p[i].child = p[i].sister = 0;
+    /*p[i].isparent = p[i].ischild = FALSE;
+      p[i].pchilds = 0;*/
+    p[i].parent = p[i].child = p[i].sister = -1;
+    p[i].print = FALSE;
   }
   return nproc;
 }
@@ -257,9 +262,11 @@ int getprocs() {
 		      "uid=%5ld, name=%8s, pid=%5ld, ppid=%5ld, cmd='%s'\n",
 		      p[i].uid, p[i].name, p[i].pid, p[i].ppid, p[i].cmd);
 #endif
-    p[i].isparent = p[i].ischild = p[i].pgl = FALSE;
-    p[i].pchilds = 0;
-    p[i].child = p[i].sister = 0;
+    /*p[i].isparent = p[i].ischild = */
+    /*p[i].pchilds = 0;*/
+    p[i].pgl = FALSE;
+    p[i].parent = p[i].child = p[i].sister = -1;
+    p[i].print = FALSE;
     i++;
   }
   pclose(tn);
@@ -275,34 +282,104 @@ int get_pid_index(long pid) {
   return i;
 }
 
-#if 0
-NEW VERSION
+#if 1
+/*NEW VERSION*/
 void maketree(void) {
   /* Build the process hierarchy. Every process marks itself as first child
    * of it's parent or as sister of first child of it's parent */
   int i, idx;
-  for(i = 0; i < NProc; i++) {
-    idx = get_pid_index(p[i].ppid);
-    if(p[idx].child == 0)
+  
+  for(i = 0; i < NProc; i++) if(p[i].pid != 0) {
+    p[i].parent = get_pid_index(p[i].ppid);
+    
+    idx = p[i].parent;
+    
+    if(p[idx].child == -1)
       p[idx].child = i;
     else {
-      idx = p[idx].child;
-      while(p[idx].sister) idx = p[idx].sister;
+      for(idx = p[idx].child; p[idx].sister != -1; idx = p[idx].sister);
       p[idx].sister = i;
     }
   }
 }
 
-void printtree(int idx, int level) {
-  printf("%d %d %d\n",
-	 level, p[idx].ppid, p[idx].pid);
-  if(p[idx].child)
-    printtree(p[idx].child, level + 1);
-  if(p[idx].sister)
-    printtree(p[idx].sister, level);
+void markchildren(int i) {
+  int idx;
+  p[i].print = TRUE;
+  for(idx = p[i].child; idx != -1; idx = p[idx].sister)
+    markchildren(idx);
+}
+
+void markprocs(void) {
+  int i;
+  
+  for(i = 0; i < NProc; i++) {
+    if(showall) {
+      p[i].print = TRUE;
+    } else {
+      int parent;
+      
+      if(0 == strcmp(p[i].name, name) 		/* for -u */
+	 || (Uoption &&
+	     0 != strcmp(p[i].name, "root"))	/* for -U */
+	 || p[i].pid == ipid			/* for -p */
+	 || (soption
+	     && NULL != strstr(p[i].cmd, str)
+	     && p[i].pid != MyPid)		/* for -s */
+	 ) {
+	/* Mark parents */
+	for(parent = p[i].parent; parent != -1; parent = p[parent].parent) {
+	  p[parent].print = TRUE;
+	}
+	/* Mark children */
+	markchildren(i);
+      }
+    }
+  }
+}
+
+void dropprocs(void) {
+  int i;
+  for(i = 0; i < NProc; i++) if(p[i].print) {
+    int idx;
+    /* Drop children that won't print */
+    for(idx = p[i].child;
+	idx != -1 && !p[idx].print; idx = p[idx].sister);
+    p[i].child = idx;
+    /* Drop sisters that won't print */
+    for(idx = p[i].sister;
+	idx != -1 && !p[idx].print; idx = p[idx].sister);
+    p[i].sister = idx;
+  }
+}
+
+void printtree(int idx, const char *head) {
+  char nhead[MAXLINE], out[4 * MAXLINE];
+  int child;
+  
+  sprintf(out,
+	  "%s%c%s%c %05d %s %s",
+	  /*"%s%c%s%c %05d %s %s (ch=%d, si=%d, pr=%d)",*/
+	  head,
+	  p[idx].sister != -1 ? c->barc : c->barl,
+	  p[idx].child  != -1 ? c->p    : c->s2,
+	  p[idx].pgl ? c->pgl : c->npgl,
+	  p[idx].pid, p[idx].name, p[idx].cmd
+	  /*,p[idx].child,p[idx].sister,p[idx].print*/);
+  
+  out[Columns-1] = '\0';
+  puts(out);
+  
+  /* Process children */
+  for(child = p[idx].child; child != -1; child = p[child].sister) {
+    sprintf(nhead, "%s%c ", head,
+	    head[0] != '\0' && p[idx].sister != -1 ? c->bar : ' ');
+    printtree(child, nhead);
+  }
 }
 #endif
 
+#if 0
 int pstree1(long pid, int level) {
   int i, j;
   i = get_pid_index(pid);
@@ -396,13 +473,18 @@ void pstree2(long pid, const char *head) {
     pstree2(p[j].pid, nhead);
   }
 }
+#endif
 
 void Pstree(long pid) {
   int i, r;
-#if 0
+#if 1
+  int idx = get_pid_index(pid);
   maketree();
-  printtree(get_pid_index(pid), 0);
-#endif
+  markprocs();
+  dropprocs();
+  printtree(idx, "");
+  return;
+#else
   r = pstree1(pid, 0); /* Pass 1 */
   
   if(r) {
@@ -421,6 +503,7 @@ void Pstree(long pid) {
   }
   
   pstree2(pid, ""); /* Pass 2 */
+#endif
 }
 
 void Usage(void) {
@@ -520,7 +603,7 @@ int main(int argc, char **argv) {
   }
   c = graph ? &Pc850 : &Ascii;
 
-  Ns1 = strlen(c->s1);
+  /*Ns1 = strlen(c->s1);*/
   
 #ifdef DEBUG
   if(debug) fprintf(stderr, "Columns = %d\n", Columns);
