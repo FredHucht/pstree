@@ -3,9 +3,12 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.3 1997-02-04 18:40:54+01 fred Exp fred $
+ * $Id: pstree.c,v 2.4 1997/02/05 09:54:08 fred Exp fred $
  *
  * $Log: pstree.c,v $
+ * Revision 2.4  1997/02/05 09:54:08  fred
+ * Fixed bug when P[i].cmd is empty
+ *
  * Revision 2.3  1997-02-04 18:40:54+01  fred
  * Cosmetic
  *
@@ -34,9 +37,9 @@
  */
 
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.3 $ by Fred Hucht (C) 1993-95",
+  "@(#)pstree $Revision: 2.4 $ by Fred Hucht (C) 1993-95",
   "@(#)EMail:fred@thp.Uni-Duisburg.DE",
-  "$Id: pstree.c,v 2.3 1997-02-04 18:40:54+01 fred Exp fred $"
+  "$Id: pstree.c,v 2.4 1997/02/05 09:54:08 fred Exp fred $"
 };
 
 #define MAXLINE 256
@@ -356,6 +359,8 @@ void DropProcs(void) {
 void PrintTree(int idx, const char *head) {
   char nhead[MAXLINE], out[4 * MAXLINE];
   int child;
+  
+  if(head[0] == '\0' && !P[idx].print) return;
   
   sprintf(out,
 	  "%s%s%s%c %05d %s %s",
