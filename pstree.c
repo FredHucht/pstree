@@ -3,9 +3,15 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.7 1997-10-22 15:01:40+02 fred Exp fred $
+ * $Id$
  *
- * $Log: pstree.c,v $
+ * $Log$
+ * Revision 2.9  1998-01-06 17:13:19+01  fred
+ * Added support for getprocs() under AIX
+ *
+ * Revision 2.8  1997-10-22 15:09:39+02  fred
+ * Cosmetic
+ *
  * Revision 2.7  1997-10-22 15:01:40+02  fred
  * Minor changes in getprocs for AIX
  *
@@ -46,9 +52,9 @@
  */
 
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.7 $ by Fred Hucht (C) 1993-1997",
+  "@(#)pstree $Revision$ by Fred Hucht (C) 1993-1997",
   "@(#)EMail:fred@thp.Uni-Duisburg.DE",
-  "$Id: pstree.c,v 2.7 1997-10-22 15:01:40+02 fred Exp fred $"
+  "$Id$"
 };
 
 #define MAXLINE 256
@@ -56,12 +62,25 @@ static char *WhatString[]= {
 #if defined(_AIX) || defined(___AIX)	/* AIX >= 3.1 */
 /* Under AIX, we directly read the process table from the kernel */
 #  define HAS_TERMDEF
+extern char *termdef(int, char);
 #  define UID2USER
 #  define _ALL_SOURCE
 #  include <procinfo.h>
+#  define USE_GETPROCS
+
+#  ifdef USE_GETPROCS
+#    define IFNEW(a,b) a
+#    define ProcInfo procsinfo
+extern getprocs(struct procsinfo *, int, struct fdsinfo *, int, pid_t *, int);
+#  else /*USE_GETPROCS*/
+#    define IFNEW(a,b) b
+#    define ProcInfo procinfo
 extern getproc(struct procinfo *, int, int);
-extern getargs(struct procinfo *, int, char *, int);
 extern getuser(struct procinfo *, int, void *, int);
+#  endif /*USE_GETPROCS*/
+
+extern getargs(struct ProcInfo *, int, char *, int);
+
 /*
  * #define PSCMD 	"ps -ekf"
  * #define PSFORMAT 	"%s %ld %ld %*20c %*s %[^\n]"
@@ -155,6 +174,7 @@ struct Proc {
   char name[9], cmd[MAXLINE];
   int  print;
   long parent, child, sister;
+  unsigned long thcount;
 } *P;
 
 #ifdef UID2USER
@@ -168,19 +188,19 @@ void uid2name(uid_t uid, char *name, int len) {
   short i;
   char *found;
 #ifdef DEBUG
-  if(name == NULL) {
-    for(i = 0; i < n; i++)
+  if (name == NULL) {
+    for (i = 0; i < n; i++)
       fprintf(stderr, "uid = %3d, name = %s\n", un[i].uid, un[i].name);
     return;
   }
-#endif  
-  for(i = n - 1; i >= 0 && un[i].uid != uid; i--);
-  if(i >= 0) { /* found locally */
+#endif
+  for (i = n - 1; i >= 0 && un[i].uid != uid; i--);
+  if (i >= 0) { /* found locally */
     found = un[i].name;
   } else {
     struct passwd *pw = getpwuid(uid);
     found = pw->pw_name;
-    if(n < NUMUN) {
+    if (n < NUMUN) {
       un[n].uid = uid;
       strncpy(un[n].name, found, 9);
       un[n].name[8] = '\0';
@@ -192,48 +212,71 @@ void uid2name(uid_t uid, char *name, int len) {
 }
 #endif
 
-#if defined(_AIX) || defined(___AIX)	/* AIX 3.x */
-int getprocs(void) {
+#if defined(_AIX) || defined(___AIX)	/* AIX 3.x / 4.x */
+int GetProcesses(void) {
   int i, nproc, maxnproc = 1024;
-  struct procinfo *proc;
+  
+  struct ProcInfo *proc;
+  int idx;
+#ifndef USE_GETPROCS
   struct userinfo user;
+#endif
   
   do {
-    proc = malloc(maxnproc * sizeof(struct procinfo));
-    if(proc == NULL) {
+    proc = malloc(maxnproc * sizeof(struct ProcInfo));
+    if (proc == NULL) {
       fprintf(stderr, "Problems with malloc.\n");
       exit(1);
     }
     
     /* Get process table */
-    nproc = getproc(proc, maxnproc, sizeof(struct procinfo));
+    idx = 0;
+    nproc = IFNEW(getprocs(proc, sizeof(struct procsinfo), NULL, 0,
+			   &idx, maxnproc),
+		  getproc(proc, maxnproc, sizeof(struct procinfo))
+		  );
 #ifdef DEBUG
-    if(debug) printf("nproc = %d maxnproc = %d\n", nproc, maxnproc);
+    idx = errno; /* Don't ask... */
+    if (debug)
+      fprintf(stderr,
+	      "nproc = %d maxnproc = %d" IFNEW(" idx = %d ","") "\n",
+	      nproc, maxnproc, idx);
+    errno = idx;
 #endif
-    if(nproc == -1) { /* More than maxnproc processes found */
+#ifdef USE_GETPROCS
+    if (nproc == -1) {
+      perror("getprocs");
+      exit(1);
+    } else if (nproc == maxnproc) {
+      nproc = -1;
+    }
+#endif
+    if (nproc == -1) {
       free(proc);
       maxnproc *= 2;
-    }
-  } while(nproc == -1);
+    } 
+  } while (nproc == -1);
   
   P = malloc((nproc+1) * sizeof(struct Proc));
-  if(P == NULL) {
+  if (P == NULL) {
     fprintf(stderr, "Problems with malloc.\n");
     exit(1);
   }
   
-  for(i = 0; i < nproc; i++) {
+  for (i = 0; i < nproc; i++) {
+#ifndef USE_GETPROCS
     getuser(&proc[i],sizeof(struct procinfo),
 	    &user,   sizeof(struct userinfo));
-    
-    P[i].uid  = proc[i].pi_uid;
-    P[i].pid  = proc[i].pi_pid;
-    P[i].ppid = proc[i].pi_ppid;
-    P[i].pgl  = proc[i].pi_pid == proc[i].pi_pgrp;
+#endif
+    P[i].uid     = proc[i].pi_uid;
+    P[i].pid     = proc[i].pi_pid;
+    P[i].ppid    = proc[i].pi_ppid;
+    P[i].pgl     = proc[i].pi_pid == proc[i].pi_pgrp;
+    P[i].thcount = IFNEW(proc[i].pi_thcount, 1);
     
     uid2name(P[i].uid, P[i].name, sizeof(P[i].name));
     
-    if(proc[i].pi_stat == SZOMB) {
+    if (IFNEW(proc[i].pi_state,proc[i].pi_stat) == SZOMB) {
       strcpy(P[i].cmd, "<defunct>");
     } else {
       char *c = P[i].cmd;
@@ -242,34 +285,38 @@ int getprocs(void) {
       c[MAXLINE-2] = c[MAXLINE-1] = '\0';
 
       /* Collect args. Stop when we encounter two '\0' */
-      while(c[ci] != '\0' && (ci += strlen(&c[ci])) < MAXLINE - 2)
+      while (c[ci] != '\0' && (ci += strlen(&c[ci])) < MAXLINE - 2)
 	c[ci++] = ' ';
       
       /* Drop trailing blanks */
       ci = strlen(c);
-      while(ci > 0 && c[ci-1] == ' ') ci--;
+      while (ci > 0 && c[ci-1] == ' ') ci--;
       c[ci] = '\0';
       
       /* Replace some unprintables with '?' */
-      for(ci = 0; c[ci] != '\0'; ci++)
-	if(c[ci] == '\n' || c[ci] == '\t') c[ci] = '?';
+      for (ci = 0; c[ci] != '\0'; ci++)
+	if (c[ci] == '\n' || c[ci] == '\t') c[ci] = '?';
       
       /* Insert [ui_comm] when getargs returns nothing */
-      if(c[0] == '\0') {
-	int l = strlen(user.ui_comm);
+      if (c[0] == '\0') {
+	int l = strlen(IFNEW(proc[i].pi_comm,user.ui_comm));
 	c[0] = '[';
-	strcpy(c+1, user.ui_comm);
+	strcpy(c+1, IFNEW(proc[i].pi_comm,user.ui_comm));
 	c[l+1] = ']';
 	c[l+2] = '\0';
       }
     }
 #ifdef DEBUG
-    if(debug) fprintf(stderr,
-		      "%d: uid=%5ld, name=%8s, pid=%5ld, ppid=%5ld, pgl=%d, tsize=%u, dvm=%u, cmd[%d]='%s'\n",
-		      i, P[i].uid, P[i].name, P[i].pid, P[i].ppid,
-		      P[i].pgl,
-		      user.ui_tsize, user.ui_dvm,
-		      strlen(P[i].cmd),P[i].cmd);
+    if (debug)
+      fprintf(stderr,
+	      "%d: uid=%5ld, name=%8s, pid=%5ld, ppid=%5ld, pgl=%d, tsize=%7u, dvm=%4u, "
+	      "thcount=%2d, cmd[%d]='%s'\n",
+	      i, P[i].uid, P[i].name, P[i].pid, P[i].ppid,
+	      P[i].pgl,
+	      IFNEW(proc[i].pi_tsize,user.ui_tsize),
+	      IFNEW(proc[i].pi_dvm,user.ui_dvm),
+	      proc[i].pi_thcount,
+	      strlen(P[i].cmd),P[i].cmd);
 #endif
     P[i].parent = P[i].child = P[i].sister = -1;
     P[i].print = FALSE;
@@ -280,7 +327,7 @@ int getprocs(void) {
 
 #else /* _AIX */
 
-int getprocs(void) {
+int GetProcesses(void) {
   FILE *tn;
   int len, i = 0;  extern int errno; /* For popen() */
 #ifdef UID2USER
@@ -288,32 +335,35 @@ int getprocs(void) {
 #endif
   char line[MAXLINE], command[] = PSCMD;
   
-  if(NULL == (tn = (FILE*)popen(command,"r"))) {
+  if (NULL == (tn = (FILE*)popen(command,"r"))) {
     fprintf(stderr, "Problems with pipe, errno = %d\n",errno);
     exit(1);
   }
 #ifdef DEBUG
-  if(debug) fprintf(stderr, "popen:errno = %d\n", errno);
+  if (debug) fprintf(stderr, "popen:errno = %d\n", errno);
 #endif
   
   fgets(line, MAXLINE, tn); /* Throw away header line */
 #ifdef DEBUG
-  if(debug) fputs(line, stderr);
+  if (debug) fputs(line, stderr);
 #endif
   
   P = malloc(sizeof(struct Proc));
-  if(P == NULL) {
+  if (P == NULL) {
     fprintf(stderr, "Problems with malloc.\n");
     exit(1);
   }
   
-  while(NULL != fgets(line, MAXLINE, tn) && 10 < (len = strlen(line))) {
+  while (NULL != fgets(line, MAXLINE, tn) && 10 < (len = strlen(line))) {
 #ifdef DEBUG
-    if(debug) {fprintf(stderr, "len=%3d ", len); fputs(line, stderr);}
+    if (debug) {
+      fprintf(stderr, "len=%3d ", len);
+      fputs(line, stderr);
+    }
 #endif
     
     P = realloc(P, (i+1) * sizeof(struct Proc));
-    if(P == NULL) {
+    if (P == NULL) {
       fprintf(stderr, "Problems with realloc.\n");
       exit(1);
     }
@@ -340,7 +390,7 @@ int getprocs(void) {
 #endif
 
 #ifdef DEBUG
-    if(debug) fprintf(stderr,
+    if (debug) fprintf(stderr,
 		      "uid=%5ld, name=%8s, pid=%5ld, ppid=%5ld, cmd='%s'\n",
 		      P[i].uid, P[i].name, P[i].pid, P[i].ppid, P[i].cmd);
 #endif
@@ -356,7 +406,7 @@ int getprocs(void) {
 
 int get_pid_index(long pid) {
   int i = 0;
-  while(i < NProc && P[i].pid != pid) i++; /* Search process */
+  while (i < NProc && P[i].pid != pid) i++; /* Search process */
   return i;
 }
 
@@ -367,15 +417,15 @@ void MakeTree(void) {
    * of it's parent or as sister of first child of it's parent */
   int i, idx;
   
-  for(i = 0; i < NProc; i++) if(P[i].pid != 0) {
+  for (i = 0; i < NProc; i++) if (P[i].pid != 0) {
     P[i].parent = get_pid_index(P[i].ppid);
     
     idx = P[i].parent;
     
-    if(P[idx].child == -1)
+    if (P[idx].child == -1)
       P[idx].child = i;
     else {
-      for(idx = P[idx].child; EXIST(P[idx].sister); idx = P[idx].sister);
+      for (idx = P[idx].child; EXIST(P[idx].sister); idx = P[idx].sister);
       P[idx].sister = i;
     }
   }
@@ -384,18 +434,18 @@ void MakeTree(void) {
 void MarkChildren(int i) {
   int idx;
   P[i].print = TRUE;
-  for(idx = P[i].child; EXIST(idx); idx = P[idx].sister)
+  for (idx = P[i].child; EXIST(idx); idx = P[idx].sister)
     MarkChildren(idx);
 }
 
 void MarkProcs(void) {
   int i;
-  for(i = 0; i < NProc; i++) {
-    if(showall) {
+  for (i = 0; i < NProc; i++) {
+    if (showall) {
       P[i].print = TRUE;
     } else {
       int parent;
-      if(0 == strcmp(P[i].name, name) 		/* for -u */
+      if (0 == strcmp(P[i].name, name) 		/* for -u */
 	 || (Uoption &&
 	     0 != strcmp(P[i].name, "root"))	/* for -U */
 	 || P[i].pid == ipid			/* for -p */
@@ -404,7 +454,7 @@ void MarkProcs(void) {
 	     && P[i].pid != MyPid)		/* for -s */
 	 ) {
 	/* Mark parents */
-	for(parent = P[i].parent; EXIST(parent); parent = P[parent].parent) {
+	for (parent = P[i].parent; EXIST(parent); parent = P[parent].parent) {
 	  P[parent].print = TRUE;
 	}
 	/* Mark children */
@@ -416,33 +466,36 @@ void MarkProcs(void) {
 
 void DropProcs(void) {
   int i;
-  for(i = 0; i < NProc; i++) if(P[i].print) {
+  for (i = 0; i < NProc; i++) if (P[i].print) {
     int idx;
     /* Drop children that won't print */
-    for(idx = P[i].child;
+    for (idx = P[i].child;
 	EXIST(idx) && !P[idx].print; idx = P[idx].sister);
     P[i].child = idx;
     /* Drop sisters that won't print */
-    for(idx = P[i].sister;
+    for (idx = P[i].sister;
 	EXIST(idx) && !P[idx].print; idx = P[idx].sister);
     P[i].sister = idx;
   }
 }
 
 void PrintTree(int idx, const char *head) {
-  char nhead[MAXLINE], out[4 * MAXLINE];
+  char nhead[MAXLINE], out[4 * MAXLINE], thread[16] = {'\0'};
   int child;
   
-  if(head[0] == '\0' && !P[idx].print) return;
+  if (head[0] == '\0' && !P[idx].print) return;
+  
+  if (P[idx].thcount > 1) sprintf(thread, "[%d]", P[idx].thcount);
   
   sprintf(out,
-	  "%s%s%s%c %05d %s %s",
-	  /*"%s%c%s%c %05d %s %s (ch=%d, si=%d, pr=%d)",*/
+	  "%s%s%s%c %05d %s %s%s" /*" (ch=%d, si=%d, pr=%d)"*/,
 	  head,
 	  head[0] == '\0' ? "" : EXIST(P[idx].sister) ? C->barc : C->barl,
 	  EXIST(P[idx].child)  ? C->p    : C->s2,
 	  P[idx].pgl ? C->pgl : C->npgl,
-	  P[idx].pid, P[idx].name, P[idx].cmd
+	  P[idx].pid, P[idx].name,
+	  thread,
+	  P[idx].cmd
 	  /*,P[idx].child,P[idx].sister,P[idx].print*/);
   
   out[Columns-1] = '\0';
@@ -452,7 +505,7 @@ void PrintTree(int idx, const char *head) {
   sprintf(nhead, "%s%s ", head,
 	  head[0] == '\0' ? "" : EXIST(P[idx].sister) ? C->bar : " ");
   
-  for(child = P[idx].child; EXIST(child); child = P[child].sister)
+  for (child = P[idx].child; EXIST(child); child = P[child].sister)
     PrintTree(child, nhead);
 }
 
@@ -493,7 +546,7 @@ int main(int argc, char **argv) {
   Progname = strrchr(argv[0],'/');
   Progname = (NULL == Progname) ? argv[0] : Progname+1;
   
-  while((ch = getopt(argc, argv, "dghp:s:u:Uw?")) != EOF)
+  while ((ch = getopt(argc, argv, "dghp:s:u:Uw?")) != EOF)
     switch(ch) {
       /*case 'a':
 	align   = TRUE;
@@ -518,7 +571,7 @@ int main(int argc, char **argv) {
     case 'u':
       showall = FALSE;
       name    = optarg;
-      if(
+      if (
 #ifdef solaris2x
 	 (int)
 #endif
@@ -542,12 +595,12 @@ int main(int argc, char **argv) {
       break;
     }
   
-  NProc = getprocs();
+  NProc = GetProcesses();
 #if defined(UID2USER) && defined(DEBUG)
-  if(debug) uid2name(0,NULL,0);
+  if (debug) uid2name(0,NULL,0);
 #endif
   MyPid = getpid();
-  if(wide)
+  if (wide)
     Columns = MAXLINE - 1;
   else {
 #ifdef HAS_TERMDEF
@@ -556,7 +609,7 @@ int main(int argc, char **argv) {
     Columns = 80;
 #endif
   }
-  if(Columns == 0 || Columns >= MAXLINE) Columns = MAXLINE - 1;
+  if (Columns == 0 || Columns >= MAXLINE) Columns = MAXLINE - 1;
   
   C = graph ? &Pc850 : &Ascii;
   
@@ -564,9 +617,9 @@ int main(int argc, char **argv) {
   MarkProcs();
   DropProcs();
   
-  if(argc == optind) /* No pids */
+  if (argc == optind) /* No pids */
     PrintTree(get_pid_index(1), "");
-  else while(optind < argc) {
+  else while (optind < argc) {
     pid = (long)atoi(argv[optind]);
     PrintTree(get_pid_index(pid), "");
     optind++;
