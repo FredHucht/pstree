@@ -3,12 +3,12 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.23 2004-02-16 10:55:20+01 fred Exp fred $
+ * $Id: pstree.c,v 2.24 2004-04-14 09:10:29+02 fred Exp fred $
  */
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.23 $ by Fred Hucht (C) 1993-2004",
+  "@(#)pstree $Revision: 2.24 $ by Fred Hucht (C) 1993-2004",
   "@(#)EMail: fred AT thp.Uni-Duisburg.de",
-  "$Id: pstree.c,v 2.23 2004-02-16 10:55:20+01 fred Exp fred $"
+  "$Id: pstree.c,v 2.24 2004-04-14 09:10:29+02 fred Exp fred $"
 };
 
 #define MAXLINE 512
@@ -46,6 +46,7 @@ extern getargs(struct ProcInfo *, int, char *, int);
 #  define PSCMD 	"ps -eko uid,pid,ppid,pgid,thcount,args"
 #  define PSFORMAT 	"%ld %ld %ld %ld %ld %[^\n]"
 #  define PSVARS	&P[i].uid, &P[i].pid, &P[i].ppid, &P[i].pgid, &P[i].thcount, P[i].cmd
+#  define PSVARSN	6
 /************************************************************************/
 #elif defined(__linux) || (defined __alpha && defined(_SYSTYPE_BSD))
 /* TRU64 contributed by Frank Parkin <fparki AT acxiom.co.uk>
@@ -60,6 +61,7 @@ extern getargs(struct ProcInfo *, int, char *, int);
 #  define PSCMD 	"ps -eo uid,pid,ppid,pgid,args"
 #  define PSFORMAT 	"%ld %ld %ld %ld %[^\n]"
 #  define PSVARS	&P[i].uid, &P[i].pid, &P[i].ppid, &P[i].pgid, P[i].cmd
+#  define PSVARSN	5
 /************************************************************************/
 #elif defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__APPLE__)
 /* NetBSD contributed by Gary D. Duzan <gary AT wheel.tiac.net>
@@ -72,6 +74,7 @@ extern getargs(struct ProcInfo *, int, char *, int);
 #  define PSCMD 	"ps -axwwo user,pid,ppid,pgid,command"
 #  define PSFORMAT 	"%s %ld %ld %ld %[^\n]"
 #  define PSVARS	P[i].name, &P[i].pid, &P[i].ppid, &P[i].pgid, P[i].cmd
+#  define PSVARSN	5
 #  define ZOMBIES_HAVE_PID_0
 /************************************************************************/
 #elif defined(sun) && (!defined(__SVR4)) /* Solaris 1.x */
@@ -89,6 +92,7 @@ extern getargs(struct ProcInfo *, int, char *, int);
 #    define PSCMD 	"ps jaxw"
 #    define PSFORMAT 	"%ld %ld %*d %*d %*s %*d %*s %ld %*s %[^\n]"
 #    define PSVARS 	&P[i].ppid, &P[i].pid, &P[i].uid, P[i].cmd
+#    define PSVARSN	4
 #  endif
 /************************************************************************/
 #elif defined(sun) && (defined(__SVR4)) /* Solaris 2.x */
@@ -125,6 +129,7 @@ extern getargs(struct ProcInfo *, int, char *, int);
 # else
 #  define PSVARS	P[i].name, &P[i].pid, &P[i].ppid, P[i].cmd
 # endif
+# define PSVARSN	4
 #endif
 
 #include <stdio.h>
@@ -402,7 +407,7 @@ int GetProcessesDirect(void) {
 
 int GetProcesses(void) {
   FILE *tn;
-  int len, i = 0;
+  int i = 0;
   char line[MAXLINE], command[] = PSCMD;
   
   /* file read code contributed by Paul Kern <pkern AT utcc.utoronto.ca> */
@@ -441,7 +446,9 @@ int GetProcesses(void) {
     exit(1);
   }
   
-  while (NULL != fgets(line, MAXLINE, tn) && 10 < (len = strlen(line))) {
+  while (NULL != fgets(line, MAXLINE, tn)) {
+    int len, num;
+    len = strlen(line);
 #ifdef DEBUG
     if (debug) {
       fprintf(stderr, "len=%3d ", len);
@@ -475,7 +482,14 @@ int GetProcesses(void) {
     }
 #endif
     
-    sscanf(line, PSFORMAT, PSVARS);
+    num = sscanf(line, PSFORMAT, PSVARS);
+    
+    if (num != PSVARSN) {
+#ifdef DEBUG
+      if (debug) fprintf(stderr, "dropped line, num=%d != %d\n", num, PSVARSN);
+#endif
+      continue;
+    }
     
 #ifdef UID2USER	/* get username */
     uid2user(P[i].uid, P[i].name, sizeof(P[i].name));
@@ -845,6 +859,9 @@ static char * strstr(s1, s2)
 
 /*
  * $Log: pstree.c,v $
+ * Revision 2.24  2004-04-14 09:10:29+02  fred
+ * *** empty log message ***
+ *
  * Revision 2.23  2004-02-16 10:55:20+01  fred
  * Fix for zombies (pid == 0) under FreeBSD
  *
