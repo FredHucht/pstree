@@ -3,9 +3,13 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.11 1998-05-23 13:30:28+02 fred Exp fred $
+ * $Id: pstree.c,v 2.12 1998-12-07 17:08:59+01 fred Exp fred $
  *
  * $Log: pstree.c,v $
+ * Revision 2.12  1998-12-07 17:08:59+01  fred
+ * Added -f option and sun 68000 support by Paul Kern
+ * <pkern@utcc.utoronto.ca>
+ *
  * Revision 2.11  1998-05-23 13:30:28+02  fred
  * Added vt100 sequences, NetBSD support
  *
@@ -63,9 +67,9 @@
  */
 
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.11 $ by Fred Hucht (C) 1993-1998",
+  "@(#)pstree $Revision: 2.12 $ by Fred Hucht (C) 1993-1998",
   "@(#)EMail:fred@thp.Uni-Duisburg.DE",
-  "$Id: pstree.c,v 2.11 1998-05-23 13:30:28+02 fred Exp fred $"
+  "$Id: pstree.c,v 2.12 1998-12-07 17:08:59+01 fred Exp fred $"
 };
 
 #define MAXLINE 256
@@ -391,7 +395,11 @@ int GetProcesses(void) {
   if (debug) fprintf(stderr, "popen:errno = %d\n", errno);
 #endif
   
-  fgets(line, MAXLINE, tn); /* Throw away header line */
+  if (NULL == fgets(line, MAXLINE, tn)) { /* Throw away header line */
+    fprintf(stderr, "No input.\n");
+    exit(1);
+  }
+  
 #ifdef DEBUG
   if (debug) fputs(line, stderr);
 #endif
@@ -666,6 +674,11 @@ int main(int argc, char **argv) {
 #else
   NProc = GetProcesses();
 #endif
+  
+  if (NProc == 0) {
+    fprintf(stderr, "No processes read.\n");
+    exit(1);
+  }
   
 #if defined(UID2USER) && defined(DEBUG)
   if (debug) uid2name(0,NULL,0);
