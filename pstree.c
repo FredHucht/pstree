@@ -3,9 +3,12 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.6 1997/10/16 16:35:19 fred Exp fred $
+ * $Id: pstree.c,v 2.7 1997-10-22 15:01:40+02 fred Exp fred $
  *
  * $Log: pstree.c,v $
+ * Revision 2.7  1997-10-22 15:01:40+02  fred
+ * Minor changes in getprocs for AIX
+ *
  * Revision 2.6  1997/10/16 16:35:19  fred
  * Added uid2name() caching username lookup, added patch for Solaris 2.x
  *
@@ -43,9 +46,9 @@
  */
 
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.6 $ by Fred Hucht (C) 1993-1997",
+  "@(#)pstree $Revision: 2.7 $ by Fred Hucht (C) 1993-1997",
   "@(#)EMail:fred@thp.Uni-Duisburg.DE",
-  "$Id: pstree.c,v 2.6 1997/10/16 16:35:19 fred Exp fred $"
+  "$Id: pstree.c,v 2.7 1997-10-22 15:01:40+02 fred Exp fred $"
 };
 
 #define MAXLINE 256
@@ -192,26 +195,24 @@ void uid2name(uid_t uid, char *name, int len) {
 #if defined(_AIX) || defined(___AIX)	/* AIX 3.x */
 int getprocs(void) {
   int i, nproc, maxnproc = 1024;
-  struct procinfo *proc = malloc(maxnproc * sizeof(struct procinfo));
+  struct procinfo *proc;
   struct userinfo user;
   
-  if(proc == NULL) {
-    fprintf(stderr, "Problems with malloc.\n");
-    exit(1);
-  }
-  
   do {
+    proc = malloc(maxnproc * sizeof(struct procinfo));
+    if(proc == NULL) {
+      fprintf(stderr, "Problems with malloc.\n");
+      exit(1);
+    }
+    
+    /* Get process table */
     nproc = getproc(proc, maxnproc, sizeof(struct procinfo));
 #ifdef DEBUG
     if(debug) printf("nproc = %d maxnproc = %d\n", nproc, maxnproc);
 #endif
     if(nproc == -1) { /* More than maxnproc processes found */
+      free(proc);
       maxnproc *= 2;
-      proc = realloc(proc, maxnproc * sizeof(struct procinfo));
-      if(proc == NULL) {
-	fprintf(stderr, "Problems with malloc.\n");
-	exit(1);
-      }
     }
   } while(nproc == -1);
   
