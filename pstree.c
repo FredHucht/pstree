@@ -3,12 +3,12 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.20 2003-07-09 20:07:29+02 fred Exp fred $
+ * $Id: pstree.c,v 2.21 2003-10-06 13:55:47+02 fred Exp fred $
  */
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.20 $ by Fred Hucht (C) 1993-2003",
+  "@(#)pstree $Revision: 2.21 $ by Fred Hucht (C) 1993-2003",
   "@(#)EMail: fred AT thp.Uni-Duisburg.de",
-  "$Id: pstree.c,v 2.20 2003-07-09 20:07:29+02 fred Exp fred $"
+  "$Id: pstree.c,v 2.21 2003-10-06 13:55:47+02 fred Exp fred $"
 };
 
 #define MAXLINE 512
@@ -57,12 +57,14 @@ extern getargs(struct ProcInfo *, int, char *, int);
 #  define PSFORMAT 	"%ld %ld %ld %ld %[^\n]"
 #  define PSVARS	&P[i].uid, &P[i].pid, &P[i].ppid, &P[i].pgid, P[i].cmd
 /************************************************************************/
-#elif defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__APPLE__)
+#elif defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__APPLE__) || (defined __alpha && defined(_SYSTYPE_BSD))
 /* NetBSD contributed by Gary D. Duzan <gary AT wheel.tiac.net>
  * FreeBSD contributed by Randall Hopper <rhh AT ct.picker.com> 
  * Darwin / Mac OS X patch by Yuji Yamano <yyamano AT kt.rim.or.jp>
  * wide output format fix for NetBSD by Jeff Brown <jabrown AT caida.org>
- * (Net|Open|Free)BSD & Darwin merged by Ralf Meyer <ralf AT thp.Uni-Duisburg.DE> */
+ * (Net|Open|Free)BSD & Darwin merged by Ralf Meyer <ralf AT thp.Uni-Duisburg.DE>
+ * TRU64 contributed by Frank Parkin <fparki AT acxiom.co.uk>
+ */
 #  define HAS_PGID
 #  define PSCMD 	"ps -axwwo user,pid,ppid,pgid,command"
 #  define PSFORMAT 	"%s %ld %ld %ld %[^\n]"
@@ -171,7 +173,7 @@ static struct TreeChars TreeChars[] = {
   { "qq",       "qw",       "`",    "q",    "t",    "x",    "m",    "\016", "\017", "\033(B\033)0" }  /*Vt100*/
 }, *C;
 
-int MyPid, NProc, Columns;
+int MyPid, NProc, Columns, RootPid;
 short showall = TRUE, soption = FALSE, Uoption = FALSE;
 char *name = "", *str = NULL, *Progname;
 long ipid = -1;
@@ -491,6 +493,24 @@ int GetProcesses(void) {
   return i;
 }
 
+int GetRootPid(void) {
+  int i;
+  for (i = 0; i < NProc; i++) {
+    if (P[i].pid == -1) return P[i].pid;
+  }
+  /* PID == 1 not found, so we'll take process with PPID == 0
+   * Fix for TRU64 TruCluster with uniq PIDs
+   * reported by Frank Parkin <fparki AT acxiom.co.uk> */
+  for (i = 0; i < NProc; i++) {
+    if (P[i].ppid == 0) return P[i].pid;
+  }
+  /* Should not happen */
+  fprintf(stderr,
+	  "%s: No process found with PID == 1 || PPID == 0, contact author.\n",
+	  Progname);
+  exit(1);
+}
+
 int get_pid_index(long pid) {
   int i;
   for (i = NProc - 1;i >= 0 && P[i].pid != pid; i--); /* Search process */
@@ -725,10 +745,20 @@ int main(int argc, char **argv) {
 #endif
   
   if (NProc == 0) {
-    fprintf(stderr, "No processes read.\n");
+    fprintf(stderr, "%s: No processes read.\n", Progname);
     exit(1);
   }
+
+#ifdef DEBUG
+  if (debug) fprintf(stderr, "NProc = %d processes found.\n", NProc);
+#endif
   
+  RootPid = GetRootPid();
+
+#ifdef DEBUG
+  if (debug) fprintf(stderr, "RootPid = %d.\n", RootPid);
+#endif
+
 #if defined(UID2USER) && defined(DEBUG)
   if (debug) uid2user(0,NULL,0);
 #endif
@@ -744,18 +774,20 @@ int main(int argc, char **argv) {
     Columns = env ? atoi(env) : 80;
 #endif
   }
-  if (Columns == 0 || Columns >= MAXLINE) Columns = MAXLINE - 1;
+  if (Columns == 0) Columns = MAXLINE - 1;
   
   printf("%s", C->init);
   
   Columns += strlen(C->sg) + strlen(C->eg); /* Don't count hidden chars */
+
+  if (Columns >= MAXLINE) Columns = MAXLINE - 1;
   
   MakeTree();
   MarkProcs();
   DropProcs();
   
   if (argc == optind) { /* No pids */
-    PrintTree(get_pid_index(1), "");
+    PrintTree(get_pid_index(RootPid), "");
   } else while (optind < argc) {
     int idx;
     pid = (long)atoi(argv[optind]);
@@ -784,6 +816,9 @@ static char * strstr(s1, s2)
 
 /*
  * $Log: pstree.c,v $
+ * Revision 2.21  2003-10-06 13:55:47+02  fred
+ * Fixed SEGV under Linux when process table changes during run
+ *
  * Revision 2.20  2003-07-09 20:07:29+02  fred
  * cosmetic
  *
