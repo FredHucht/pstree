@@ -3,9 +3,13 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.14 1999-03-22 20:45:02+01 fred Exp fred $
+ * $Id: pstree.c,v 2.15 2000-03-01 10:18:56+01 fred Exp fred $
  *
  * $Log: pstree.c,v $
+ * Revision 2.15  2000-03-01 10:18:56+01  fred
+ * Added process group support for {Net|Open}BSD following a suggestion
+ * by Ralf Meyer <ralf@thp.Uni-Duisburg.de>
+ *
  * Revision 2.14  1999-03-22 20:45:02+01  fred
  * Fixed bug when line longer than MAXLINE, set MAXLINE=512
  *
@@ -73,9 +77,9 @@
  */
 
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.14 $ by Fred Hucht (C) 1993-2000",
+  "@(#)pstree $Revision: 2.15 $ by Fred Hucht (C) 1993-2000",
   "@(#)EMail:fred@thp.Uni-Duisburg.DE",
-  "$Id: pstree.c,v 2.14 1999-03-22 20:45:02+01 fred Exp fred $"
+  "$Id: pstree.c,v 2.15 2000-03-01 10:18:56+01 fred Exp fred $"
 };
 
 #define MAXLINE 512
@@ -463,8 +467,8 @@ int GetProcesses(void) {
 
 #ifdef DEBUG
     if (debug) fprintf(stderr,
-		      "uid=%5ld, name=%8s, pid=%5ld, ppid=%5ld, pgid=%5ld, cmd='%s'\n",
-		      P[i].uid, P[i].name, P[i].pid, P[i].ppid, P[i].pgid, P[i].cmd);
+		      "uid=%5ld, name=%8s, pid=%5ld, ppid=%5ld, pgid=%5ld, thcount=%d, cmd='%s'\n",
+		      P[i].uid, P[i].name, P[i].pid, P[i].ppid, P[i].pgid, P[i].thcount, P[i].cmd);
 #endif
     P[i].parent = P[i].child = P[i].sister = -1;
     P[i].print  = FALSE;
