@@ -3,9 +3,14 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.9 1998-01-07 16:55:26+01 fred Exp $
+ * $Id: pstree.c,v 2.10 1998-02-02 15:04:57+01 fred Exp fred $
  *
  * $Log: pstree.c,v $
+ * Revision 2.10  1998-02-02 15:04:57+01  fred
+ * Fixed bug in MakeTree()/get_pid_index() when parent doesn't
+ * exist. Thanks to Igor Schein <igor@andrew.air-boston.com> for the bug
+ * report.
+ *
  * Revision 2.9  1998-01-07 16:55:26+01  fred
  * Added support for getprocs()
  *
@@ -55,9 +60,9 @@
  */
 
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.9 $ by Fred Hucht (C) 1993-1997",
+  "@(#)pstree $Revision: 2.10 $ by Fred Hucht (C) 1993-1997",
   "@(#)EMail:fred@thp.Uni-Duisburg.DE",
-  "$Id: pstree.c,v 2.9 1998-01-07 16:55:26+01 fred Exp $"
+  "$Id: pstree.c,v 2.10 1998-02-02 15:04:57+01 fred Exp fred $"
 };
 
 #define MAXLINE 256
@@ -112,6 +117,10 @@ extern getargs(struct ProcInfo *, int, char *, int);
 #  define UID2USER
 #  define PSCMD 	"ps laxw"
 #  define PSFORMAT 	"%ld %ld %ld %*d %*d %*d %*d %*d %*s %*s %*s %*s %[^\n]"
+#elif defined(__FreeBSD__) /* FreeBSD  */
+/* contributed by Randall Hopper <rhh@ct.picker.com> */
+#  define PSCMD 	"ps -axo \"user pid ppid command\""
+#  define PSFORMAT 	"%s %d %d %[^\n]"
 #elif defined(_BSD)	/* Untested */
 #  define UID2USER
 #  define PSCMD 	"ps laxw"
@@ -120,6 +129,10 @@ extern getargs(struct ProcInfo *, int, char *, int);
 #  define UID2USER
 #  define PSCMD 	"ps laxw"
 #  define PSFORMAT 	"%*s %ld %ld %ld %*d %*g %*d %*d %*21c %*s %[^\n]"
+#elif defined(__NetBSD__)
+/* contributed by Gary D. Duzan <gary@wheel.tiac.net> */
+#  define PSCMD               "ps -axwwo user,pid,ppid,command"
+#  define PSFORMAT    "%s %d %d %[^\n]"
 #else			/* HP-UX, A/UX etc. */
 #  define PSCMD 	"ps -ef"
 #  define PSFORMAT 	"%s %ld %ld %*20c %*s %[^\n]"
@@ -150,20 +163,27 @@ extern getargs(struct ProcInfo *, int, char *, int);
 struct TreeChars {
   char *s2, 		/* String between header and pid */
     *p, 		/* dito, when parent of printed childs */
-    pgl,		/* Process group leader */
-    npgl,		/* No process group leader */
+    *pgl,		/* Process group leader */
+    *npgl,		/* No process group leader */
     *barc, 		/* bar for line with child */
     *bar, 		/* bar for line without child */
-    *barl;		/* bar for last child */
+    *barl,		/* bar for last child */
+    *sg,		/* Start graphics (alt char set) */
+    *eg,		/* End graphics (alt char set) */
+    *init;		/* Init string sent at the beginning */
 };
 
-static struct TreeChars
-  Ascii = { "--",       "-+",       '=',    '-',    "|",    "|",    "\\"   },
-  Pc850 = { "\304\304", "\304\302", '\315', '\304', "\303", "\263", "\300" },
-  *C;
+enum { G_ASCII = 0, G_PC850 = 1, G_VT100 = 2, G_LAST };
 
-int MyPid, NProc, /*Ns1, Maxlevel = 0, Alignlen, */Columns;
-short /*align = FALSE, */showall = TRUE, soption = FALSE, Uoption = FALSE;
+/* VT sequences contributed by Randall Hopper <rhh@ct.picker.com> */
+static struct TreeChars TreeChars[] = {
+  { "--",       "-+",       "=",    "-",    "|",    "|",    "\\",   "",     "",     ""             }, /*Ascii*/
+  { "\304\304", "\304\302", "\372", "\304", "\303", "\263", "\300", "",     "",     ""             }, /*Pc850*/
+  { "qq",       "qw",       "`",    "q",    "t",    "x",    "m",    "\016", "\017", "\033(B\033)0" }  /*Vt100*/
+}, *C;
+
+int MyPid, NProc, Columns;
+short showall = TRUE, soption = FALSE, Uoption = FALSE;
 char *name = "", *str = NULL, *Progname;
 long ipid = -1;
 
@@ -488,14 +508,16 @@ void PrintTree(int idx, const char *head) {
   
   if (head[0] == '\0' && !P[idx].print) return;
   
-  if (P[idx].thcount > 1) sprintf(thread, "[%d]", P[idx].thcount);
+  if (P[idx].thcount > 1) sprintf(thread, "[%ld]", P[idx].thcount);
   
   sprintf(out,
-	  "%s%s%s%c %05d %s %s%s" /*" (ch=%d, si=%d, pr=%d)"*/,
+	  "%s%s%s%s%s%s %05ld %s %s%s" /*" (ch=%d, si=%d, pr=%d)"*/,
+	  C->sg,
 	  head,
 	  head[0] == '\0' ? "" : EXIST(P[idx].sister) ? C->barc : C->barl,
 	  EXIST(P[idx].child)  ? C->p    : C->s2,
 	  P[idx].pgl ? C->pgl : C->npgl,
+	  C->eg,
 	  P[idx].pid, P[idx].name,
 	  thread,
 	  P[idx].cmd
@@ -525,7 +547,7 @@ void Usage(void) {
 #ifdef DEBUG
 	  "   -d        print debugging info to stderr\n"
 #endif
-	  "   -g        use IBM-850 graphics chars for tree\n"
+	  "   -g n      use graphics chars for tree. n=1: IBM-850, n=2: VT100\n"
 	  "   -u user   show only parts containing processes of <user>\n"
 	  "   -U        don't show parts containing only root processes\n"
           "   -s string show only parts containing process with <string> in commandline\n"
@@ -535,7 +557,8 @@ void Usage(void) {
 	  "             use 0 to also show kernel processes\n"
 	  , WhatString[0] + 4, WhatString[1] + 4, Progname);
 #if defined(_AIX) || defined(___AIX)	/* AIX 3.x */
-  fprintf(stderr, "\nProcess group leaders are marked with '='.\n");
+  fprintf(stderr, "\n%sProcess group leaders are marked with '%s%s%s'.\n",
+	  C->init, C->sg, C->pgl, C->eg);
 #endif
   exit(1);
 }
@@ -545,11 +568,14 @@ int main(int argc, char **argv) {
   extern char *optarg;
   int ch;
   long pid;
-  int graph = FALSE, wide = FALSE;
+  int graph = G_ASCII, wide = FALSE;
+  
+  C = &TreeChars[graph];
+  
   Progname = strrchr(argv[0],'/');
   Progname = (NULL == Progname) ? argv[0] : Progname+1;
   
-  while ((ch = getopt(argc, argv, "dghp:s:u:Uw?")) != EOF)
+  while ((ch = getopt(argc, argv, "dg:hp:s:u:Uw?")) != EOF)
     switch(ch) {
       /*case 'a':
 	align   = TRUE;
@@ -560,7 +586,13 @@ int main(int argc, char **argv) {
       break;
 #endif
     case 'g':
-      graph   = TRUE;
+      graph   = atoi(optarg);
+      if (graph < 0 || graph >= G_LAST) {
+	fprintf(stderr, "%s: Invalid graph parameter.\n",
+		Progname);
+	exit(1);
+      }
+      C = &TreeChars[graph];
       break;
     case 'p':
       showall = FALSE;
@@ -603,6 +635,7 @@ int main(int argc, char **argv) {
   if (debug) uid2name(0,NULL,0);
 #endif
   MyPid = getpid();
+  
   if (wide)
     Columns = MAXLINE - 1;
   else {
@@ -614,7 +647,9 @@ int main(int argc, char **argv) {
   }
   if (Columns == 0 || Columns >= MAXLINE) Columns = MAXLINE - 1;
   
-  C = graph ? &Pc850 : &Ascii;
+  printf("%s", C->init);
+  
+  Columns += strlen(C->sg) + strlen(C->eg); /* Don't count hidden chars */
   
   MakeTree();
   MarkProcs();
