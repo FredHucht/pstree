@@ -3,12 +3,12 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.17 2001/12/17 12:18:02 fred Exp fred $
+ * $Id: pstree.c,v 2.18 2003/03/13 18:53:22 fred Exp fred $
  */
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.17 $ by Fred Hucht (C) 1993-2003",
+  "@(#)pstree $Revision: 2.18 $ by Fred Hucht (C) 1993-2003",
   "@(#)EMail:fred@thp.Uni-Duisburg.de",
-  "$Id: pstree.c,v 2.17 2001/12/17 12:18:02 fred Exp fred $"
+  "$Id: pstree.c,v 2.18 2003/03/13 18:53:22 fred Exp fred $"
 };
 
 #define MAXLINE 512
@@ -58,6 +58,16 @@ extern getargs(struct ProcInfo *, int, char *, int);
 #  define PSFORMAT 	"%ld %ld %ld %ld %[^\n]"
 #  define PSVARS	&P[i].uid, &P[i].pid, &P[i].ppid, &P[i].pgid, P[i].cmd
 /************************************************************************/
+#elif defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__APPLE__)
+/* NetBSD contributed by Gary D. Duzan <gary@wheel.tiac.net>
+ * FreeBSD contributed by Randall Hopper <rhh@ct.picker.com> 
+ * wide output format fix by Jeff Brown <jabrown@caida.org>
+ * (Net|Open|Free)BSD & Darwin merged by Ralf Meyer <ralf@thp.Uni-Duisburg.DE> */
+#  define HAS_PGID
+#  define PSCMD 	"ps -axwwo user,pid,ppid,pgid,command"
+#  define PSFORMAT 	"%s %ld %ld %ld %[^\n]"
+#  define PSVARS	P[i].name, &P[i].pid, &P[i].ppid, &P[i].pgid, P[i].cmd
+/************************************************************************/
 #elif defined(sun) && (!defined(__SVR4)) /* Solaris 1.x */
 /* contributed by L. Mark Larsen <mlarsen@ptdcs2.intel.com> */
 /* new cpp criteria by Pierre Belanger <belanger@risq.qc.ca> */
@@ -87,11 +97,6 @@ extern getargs(struct ProcInfo *, int, char *, int);
 #  define PSCMD 	"ps laxw"
 #  define PSFORMAT 	"%ld %ld %ld %*d %*d %*d %*d %*d %*s %*s %*s %*s %[^\n]"
 /************************************************************************/
-#elif defined(__FreeBSD__) /* FreeBSD  */
-/* FreeBSD contributed by Randall Hopper <rhh@ct.picker.com> */
-#  define PSCMD 	"ps -axo \"user pid ppid command\""
-#  define PSFORMAT 	"%s %d %d %[^\n]"
-/************************************************************************/
 #elif defined(_BSD)	/* Untested */
 #  define UID2USER
 #  define PSCMD 	"ps laxw"
@@ -101,13 +106,6 @@ extern getargs(struct ProcInfo *, int, char *, int);
 #  define UID2USER
 #  define PSCMD 	"ps laxw"
 #  define PSFORMAT 	"%*s %ld %ld %ld %*d %*g %*d %*d %*21c %*s %[^\n]"
-/************************************************************************/
-#elif defined(__NetBSD__) || defined(__OpenBSD__)
-/* NetBSD contributed by Gary D. Duzan <gary@wheel.tiac.net> */
-#  define HAS_PGID
-#  define PSCMD 	"ps -axwwo user,pid,ppid,pgid,command"
-#  define PSFORMAT 	"%s %ld %ld %ld %[^\n]"
-#  define PSVARS	P[i].name, &P[i].pid, &P[i].ppid, &P[i].pgid, P[i].cmd
 /************************************************************************/
 #else			/* HP-UX, A/UX etc. */
 #  define PSCMD 	"ps -ef"
@@ -763,6 +761,9 @@ static char * strstr(s1, s2)
 
 /*
  * $Log: pstree.c,v $
+ * Revision 2.18  2003/03/13 18:53:22  fred
+ * Added getenv("COLUMNS"), cosmetic changes
+ *
  * Revision 2.17  2001/12/17 12:18:02  fred
  * Changed ps call to something like ps -eo uid,pid,ppid,pgid,args under
  * AIX and Linux, workaround for AIX 5L.
