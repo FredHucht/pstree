@@ -3,9 +3,12 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.13 1998-12-17 19:31:53+01 fred Exp fred $
+ * $Id: pstree.c,v 2.14 1999-03-22 20:45:02+01 fred Exp fred $
  *
  * $Log: pstree.c,v $
+ * Revision 2.14  1999-03-22 20:45:02+01  fred
+ * Fixed bug when line longer than MAXLINE, set MAXLINE=512
+ *
  * Revision 2.13  1998-12-17 19:31:53+01  fred
  * Fixed problem with option -f when input file is empty
  *
@@ -70,9 +73,9 @@
  */
 
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.13 $ by Fred Hucht (C) 1993-1998",
+  "@(#)pstree $Revision: 2.14 $ by Fred Hucht (C) 1993-2000",
   "@(#)EMail:fred@thp.Uni-Duisburg.DE",
-  "$Id: pstree.c,v 2.13 1998-12-17 19:31:53+01 fred Exp fred $"
+  "$Id: pstree.c,v 2.14 1999-03-22 20:45:02+01 fred Exp fred $"
 };
 
 #define MAXLINE 512
@@ -83,7 +86,7 @@ static char *WhatString[]= {
 #  define HAS_TERMDEF
 extern char *termdef(int, char);
 #  define _ALL_SOURCE
-#  include <pwd.h>
+/*#  include <pwd.h>*/
 #  define NEED_UID2NAME
 #  include <procinfo.h>
 #  define USE_GETPROCS
@@ -136,7 +139,7 @@ extern getargs(struct ProcInfo *, int, char *, int);
 #  define PSCMD 	"ps laxw"
 #  define PSFORMAT 	"%ld %ld %ld %*d %*d %*d %*d %*d %*s %*s %*s %*s %[^\n]"
 #elif defined(__FreeBSD__) /* FreeBSD  */
-/* contributed by Randall Hopper <rhh@ct.picker.com> */
+/* FreeBSD contributed by Randall Hopper <rhh@ct.picker.com> */
 #  define PSCMD 	"ps -axo \"user pid ppid command\""
 #  define PSFORMAT 	"%s %d %d %[^\n]"
 #elif defined(_BSD)	/* Untested */
@@ -147,10 +150,11 @@ extern getargs(struct ProcInfo *, int, char *, int);
 #  define UID2USER
 #  define PSCMD 	"ps laxw"
 #  define PSFORMAT 	"%*s %ld %ld %ld %*d %*g %*d %*d %*21c %*s %[^\n]"
-#elif defined(__NetBSD__)
-/* contributed by Gary D. Duzan <gary@wheel.tiac.net> */
-#  define PSCMD               "ps -axwwo user,pid,ppid,command"
-#  define PSFORMAT    "%s %d %d %[^\n]"
+#elif defined(__NetBSD__) || defined(__OpenBSD__)
+/* NetBSD contributed by Gary D. Duzan <gary@wheel.tiac.net> */
+#  define PSCMD               "ps -axwwo user,pid,ppid,pgid,command"
+#  define PSFORMAT    "%s %ld %ld %ld %[^\n]"
+#  define PSVARS	P[i].name, &P[i].pid, &P[i].ppid, &P[i].pgid, P[i].cmd
 #else			/* HP-UX, A/UX etc. */
 #  define PSCMD 	"ps -ef"
 #  define PSFORMAT 	"%s %ld %ld %*20c %*s %[^\n]"
@@ -167,10 +171,11 @@ extern getargs(struct ProcInfo *, int, char *, int);
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>		/* For str...() */
-#include <unistd.h>		/* For getopt */
+#include <unistd.h>		/* For getopt() */
+#include <pwd.h>		/* For getpwnam() */
 
 #ifdef UID2USER
-#include <pwd.h>
+/*#include <pwd.h>*/
 #define NEED_UID2NAME
 #endif
 
@@ -216,8 +221,7 @@ int debug = FALSE;
 #endif
 
 struct Proc {
-  long uid, pid, ppid;
-  int pgl;
+  long uid, pid, ppid, pgid;
   char name[9], cmd[MAXLINE];
   int  print;
   long parent, child, sister;
@@ -318,7 +322,7 @@ int GetProcessesDirect(void) {
     P[i].uid     = proc[i].pi_uid;
     P[i].pid     = proc[i].pi_pid;
     P[i].ppid    = proc[i].pi_ppid;
-    P[i].pgl     = proc[i].pi_pid == proc[i].pi_pgrp;
+    P[i].pgid    = proc[i].pi_pgrp;
     P[i].thcount = IFNEW(proc[i].pi_thcount, 1);
     
     uid2name(P[i].uid, P[i].name, sizeof(P[i].name));
@@ -356,10 +360,9 @@ int GetProcessesDirect(void) {
 #ifdef DEBUG
     if (debug)
       fprintf(stderr,
-	      "%d: uid=%5ld, name=%8s, pid=%5ld, ppid=%5ld, pgl=%d, tsize=%7u, dvm=%4u, "
+	      "%d: uid=%5ld, name=%8s, pid=%5ld, ppid=%5ld, pgid=%5ld, tsize=%7u, dvm=%4u, "
 	      "thcount=%2d, cmd[%d]='%s'\n",
-	      i, P[i].uid, P[i].name, P[i].pid, P[i].ppid,
-	      P[i].pgl,
+	      i, P[i].uid, P[i].name, P[i].pid, P[i].ppid, P[i].pgid,
 	      IFNEW(proc[i].pi_tsize,user.ui_tsize),
 	      IFNEW(proc[i].pi_dvm,user.ui_dvm),
 	      proc[i].pi_thcount,
@@ -390,9 +393,14 @@ int GetProcesses(void) {
       perror(input);
       exit(1);
     }
-  } else if (NULL == (tn = (FILE*)popen(command,"r"))) {
-    perror("Problems with pipe");
-    exit(1);
+  } else {
+#ifdef DEBUG
+    if (debug) fprintf(stderr, "calling '%s'\n", command);
+#endif
+    if (NULL == (tn = (FILE*)popen(command,"r"))) {
+      perror("Problems with pipe");
+      exit(1);
+    }
   }
 #ifdef DEBUG
   if (debug) fprintf(stderr, "popen:errno = %d\n", errno);
@@ -455,12 +463,11 @@ int GetProcesses(void) {
 
 #ifdef DEBUG
     if (debug) fprintf(stderr,
-		      "uid=%5ld, name=%8s, pid=%5ld, ppid=%5ld, cmd='%s'\n",
-		      P[i].uid, P[i].name, P[i].pid, P[i].ppid, P[i].cmd);
+		      "uid=%5ld, name=%8s, pid=%5ld, ppid=%5ld, pgid=%5ld, cmd='%s'\n",
+		      P[i].uid, P[i].name, P[i].pid, P[i].ppid, P[i].pgid, P[i].cmd);
 #endif
-    P[i].pgl = FALSE;
     P[i].parent = P[i].child = P[i].sister = -1;
-    P[i].print = FALSE;
+    P[i].print  = FALSE;
     i++;
   }
   if (input != NULL)
@@ -558,8 +565,8 @@ void PrintTree(int idx, const char *head) {
 	  C->sg,
 	  head,
 	  head[0] == '\0' ? "" : EXIST(P[idx].sister) ? C->barc : C->barl,
-	  EXIST(P[idx].child)  ? C->p    : C->s2,
-	  P[idx].pgl ? C->pgl : C->npgl,
+	  EXIST(P[idx].child)       ? C->p   : C->s2,
+	  P[idx].pid == P[idx].pgid ? C->pgl : C->npgl,
 	  C->eg,
 	  P[idx].pid, P[idx].name,
 	  thread,
