@@ -1,11 +1,14 @@
-/*	This is pstree written by Fred Hucht (c) 1993-1997	*
+/*	This is pstree written by Fred Hucht (c) 1993-1998	*
  *	EMail: fred@thp.Uni-Duisburg.DE				*
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.10 1998-02-02 15:04:57+01 fred Exp fred $
+ * $Id: pstree.c,v 2.11 1998-05-23 13:30:28+02 fred Exp fred $
  *
  * $Log: pstree.c,v $
+ * Revision 2.11  1998-05-23 13:30:28+02  fred
+ * Added vt100 sequences, NetBSD support
+ *
  * Revision 2.10  1998-02-02 15:04:57+01  fred
  * Fixed bug in MakeTree()/get_pid_index() when parent doesn't
  * exist. Thanks to Igor Schein <igor@andrew.air-boston.com> for the bug
@@ -60,19 +63,21 @@
  */
 
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.10 $ by Fred Hucht (C) 1993-1997",
+  "@(#)pstree $Revision: 2.11 $ by Fred Hucht (C) 1993-1998",
   "@(#)EMail:fred@thp.Uni-Duisburg.DE",
-  "$Id: pstree.c,v 2.10 1998-02-02 15:04:57+01 fred Exp fred $"
+  "$Id: pstree.c,v 2.11 1998-05-23 13:30:28+02 fred Exp fred $"
 };
 
 #define MAXLINE 256
 
 #if defined(_AIX) || defined(___AIX)	/* AIX >= 3.1 */
 /* Under AIX, we directly read the process table from the kernel */
+#define USE_GetProcessesDirect
 #  define HAS_TERMDEF
 extern char *termdef(int, char);
-#  define UID2USER
 #  define _ALL_SOURCE
+#  include <pwd.h>
+#  define NEED_UID2NAME
 #  include <procinfo.h>
 #  define USE_GETPROCS
 
@@ -89,11 +94,9 @@ extern getuser(struct procinfo *, int, void *, int);
 
 extern getargs(struct ProcInfo *, int, char *, int);
 
-/*
- * #define PSCMD 	"ps -ekf"
- * #define PSFORMAT 	"%s %ld %ld %*20c %*s %[^\n]"
- * #define PSVARS	P[i].name, &P[i].pid, &P[i].ppid, P[i].cmd
- */
+#  define PSCMD 	"ps -ekf"
+#  define PSFORMAT 	"%s %ld %ld %*20c %*s %[^\n]"
+
 #elif defined(__linux)	/* Linux */
 #  define UID2USER
 #  define PSCMD 	"ps laxw"
@@ -104,9 +107,17 @@ extern getargs(struct ProcInfo *, int, char *, int);
 /* new cpp criteria by Pierre Belanger <belanger@risq.qc.ca> */
 #  define solaris1x
 #  define UID2USER
-#  define PSCMD 	"ps jaxw"
-#  define PSFORMAT 	"%ld %ld %*d %*d %*s %*d %*s %ld %*s %[^\n]"
-#  define PSVARS 	&P[i].ppid, &P[i].pid, &P[i].uid, P[i].cmd
+#  ifdef mc68000
+/* contributed by Paul Kern <pkern@utcc.utoronto.ca> */
+#    define PSCMD 	"ps laxw"
+#    define PSFORMAT 	"%*7c%ld %ld %ld %*d %*d %*d %*x %*d %*d %*x %*14c %[^\n]"
+#    define uid_t	int
+#    define NEED_STRSTR
+#  else
+#    define PSCMD 	"ps jaxw"
+#    define PSFORMAT 	"%ld %ld %*d %*d %*s %*d %*s %ld %*s %[^\n]"
+#    define PSVARS 	&P[i].ppid, &P[i].pid, &P[i].uid, P[i].cmd
+#  endif
 #elif defined(sun) && (defined(__SVR4)) /* Solaris 2.x */
 /* contributed by Pierre Belanger <belanger@risq.qc.ca> */
 #  define solaris2x
@@ -153,6 +164,11 @@ extern getargs(struct ProcInfo *, int, char *, int);
 
 #ifdef UID2USER
 #include <pwd.h>
+#define NEED_UID2NAME
+#endif
+
+#ifdef NEED_STRSTR
+static char *strstr(char *, char *);
 #endif
 
 #ifndef TRUE
@@ -186,6 +202,7 @@ int MyPid, NProc, Columns;
 short showall = TRUE, soption = FALSE, Uoption = FALSE;
 char *name = "", *str = NULL, *Progname;
 long ipid = -1;
+char *input = NULL;
 
 #ifdef DEBUG
 int debug = FALSE;
@@ -200,7 +217,7 @@ struct Proc {
   unsigned long thcount;
 } *P;
 
-#ifdef UID2USER
+#ifdef NEED_UID2NAME
 void uid2name(uid_t uid, char *name, int len) {
 #define NUMUN 128
   static struct un_ {
@@ -236,7 +253,7 @@ void uid2name(uid_t uid, char *name, int len) {
 #endif
 
 #if defined(_AIX) || defined(___AIX)	/* AIX 3.x / 4.x */
-int GetProcesses(void) {
+int GetProcessesDirect(void) {
   int i, nproc, maxnproc = 1024;
   
   struct ProcInfo *proc;
@@ -348,7 +365,7 @@ int GetProcesses(void) {
   return nproc;
 }
 
-#else /* _AIX */
+#endif /* _AIX */
 
 int GetProcesses(void) {
   FILE *tn;
@@ -358,8 +375,16 @@ int GetProcesses(void) {
 #endif
   char line[MAXLINE], command[] = PSCMD;
   
-  if (NULL == (tn = (FILE*)popen(command,"r"))) {
-    fprintf(stderr, "Problems with pipe, errno = %d\n",errno);
+  /* file read code contributed by Paul Kern <pkern@utcc.utoronto.ca> */
+  if (input != NULL) {
+    if (strcmp(input, "-") == 0)
+      tn = stdin;
+    else if (NULL == (tn = fopen(input,"r"))) {
+      perror(input);
+      exit(1);
+    }
+  } else if (NULL == (tn = (FILE*)popen(command,"r"))) {
+    perror("Problems with pipe");
     exit(1);
   }
 #ifdef DEBUG
@@ -422,10 +447,12 @@ int GetProcesses(void) {
     P[i].print = FALSE;
     i++;
   }
-  pclose(tn);
+  if (input != NULL)
+    fclose(tn);
+  else
+    pclose(tn);
   return i;
 }
-#endif /* _AIX */
 
 int get_pid_index(long pid) {
   int i;
@@ -542,11 +569,12 @@ void Usage(void) {
 #ifdef DEBUG
 	  "[-d] "
 #endif
-	  "[-g] [-u user] [-U] [-s string] [-p pid] [-w] [pid ...]\n"
+	  "[-f file] [-g] [-u user] [-U] [-s string] [-p pid] [-w] [pid ...]\n"
 	  /*"   -a        align output\n"*/
 #ifdef DEBUG
 	  "   -d        print debugging info to stderr\n"
 #endif
+	  "   -f file   read input from <file> (- is stdin) instead of running \"%s\"\n"
 	  "   -g n      use graphics chars for tree. n=1: IBM-850, n=2: VT100\n"
 	  "   -u user   show only parts containing processes of <user>\n"
 	  "   -U        don't show parts containing only root processes\n"
@@ -555,7 +583,7 @@ void Usage(void) {
 	  "   -w        wide output, not truncated to window width\n"
 	  "   pid ...   process ids to start from, default is 1 (init)\n"
 	  "             use 0 to also show kernel processes\n"
-	  , WhatString[0] + 4, WhatString[1] + 4, Progname);
+	  , WhatString[0] + 4, WhatString[1] + 4, Progname, PSCMD);
 #if defined(_AIX) || defined(___AIX)	/* AIX 3.x */
   fprintf(stderr, "\n%sProcess group leaders are marked with '%s%s%s'.\n",
 	  C->init, C->sg, C->pgl, C->eg);
@@ -575,7 +603,7 @@ int main(int argc, char **argv) {
   Progname = strrchr(argv[0],'/');
   Progname = (NULL == Progname) ? argv[0] : Progname+1;
   
-  while ((ch = getopt(argc, argv, "dg:hp:s:u:Uw?")) != EOF)
+  while ((ch = getopt(argc, argv, "df:g:hp:s:u:Uw?")) != EOF)
     switch(ch) {
       /*case 'a':
 	align   = TRUE;
@@ -585,6 +613,9 @@ int main(int argc, char **argv) {
       debug   = TRUE;
       break;
 #endif
+    case 'f':
+      input   = optarg;
+      break;
     case 'g':
       graph   = atoi(optarg);
       if (graph < 0 || graph >= G_LAST) {
@@ -630,7 +661,12 @@ int main(int argc, char **argv) {
       break;
     }
   
+#ifdef USE_GetProcessesDirect
+  NProc = input == NULL ? GetProcessesDirect() : GetProcesses();
+#else
   NProc = GetProcesses();
+#endif
+  
 #if defined(UID2USER) && defined(DEBUG)
   if (debug) uid2name(0,NULL,0);
 #endif
@@ -665,3 +701,18 @@ int main(int argc, char **argv) {
   free(P);
   return 0;
 }
+
+#ifdef NEED_STRSTR
+/* Contributed by Paul Kern <pkern@utcc.utoronto.ca> */
+static char * strstr(s1, s2)
+     register char *s1, *s2;
+{
+  register int n1, n2;
+  
+  if (n2 = strlen(s2))
+    for (n1 = strlen(s1); n1 >= n2; s1++, n1--)
+      if (strncmp(s1, s2, n2) == 0)
+	return s1;
+  return NULL;
+}
+#endif /* NEED_STRSTR */
