@@ -3,9 +3,12 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.12 1998-12-07 17:08:59+01 fred Exp fred $
+ * $Id: pstree.c,v 2.13 1998-12-17 19:31:53+01 fred Exp fred $
  *
  * $Log: pstree.c,v $
+ * Revision 2.13  1998-12-17 19:31:53+01  fred
+ * Fixed problem with option -f when input file is empty
+ *
  * Revision 2.12  1998-12-07 17:08:59+01  fred
  * Added -f option and sun 68000 support by Paul Kern
  * <pkern@utcc.utoronto.ca>
@@ -67,12 +70,12 @@
  */
 
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.12 $ by Fred Hucht (C) 1993-1998",
+  "@(#)pstree $Revision: 2.13 $ by Fred Hucht (C) 1993-1998",
   "@(#)EMail:fred@thp.Uni-Duisburg.DE",
-  "$Id: pstree.c,v 2.12 1998-12-07 17:08:59+01 fred Exp fred $"
+  "$Id: pstree.c,v 2.13 1998-12-17 19:31:53+01 fred Exp fred $"
 };
 
-#define MAXLINE 256
+#define MAXLINE 512
 
 #if defined(_AIX) || defined(___AIX)	/* AIX >= 3.1 */
 /* Under AIX, we directly read the process table from the kernel */
@@ -417,6 +420,11 @@ int GetProcesses(void) {
       fputs(line, stderr);
     }
 #endif
+    
+    if (len == MAXLINE - 1) { /* line too long, drop remaining stuff */
+      char tmp[MAXLINE];
+      while (MAXLINE - 1 == strlen(fgets(tmp, MAXLINE, tn)));
+    }      
     
     P = realloc(P, (i+1) * sizeof(struct Proc));
     if (P == NULL) {
