@@ -1,14 +1,14 @@
 /*	This is pstree written by Fred Hucht (c) 1993-2003	*
- *	EMail: fred@thp.Uni-Duisburg.DE				*
+ *	EMail: fred AT thp.Uni-Duisburg.de			*
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.18 2003/03/13 18:53:22 fred Exp fred $
+ * $Id: pstree.c,v 2.19 2003/05/26 15:33:35 fred Exp fred $
  */
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.18 $ by Fred Hucht (C) 1993-2003",
-  "@(#)EMail:fred@thp.Uni-Duisburg.de",
-  "$Id: pstree.c,v 2.18 2003/03/13 18:53:22 fred Exp fred $"
+  "@(#)pstree $Revision: 2.19 $ by Fred Hucht (C) 1993-2003",
+  "@(#)EMail: fred AT thp.Uni-Duisburg.de",
+  "$Id: pstree.c,v 2.19 2003/05/26 15:33:35 fred Exp fred $"
 };
 
 #define MAXLINE 512
@@ -17,13 +17,12 @@ static char *WhatString[]= {
 /* Under AIX, we directly read the process table from the kernel */
 # ifndef _AIX50
 /* problems with getprocs() under AIX 5L
- * workaround contributed by Chris Benesch <chris@fdbs.com> */
+ * workaround contributed by Chris Benesch <chris AT fdbs.com> */
 #  define USE_GetProcessesDirect
 # endif /*_AIX50*/
 #  define HAS_TERMDEF
 extern char *termdef(int, char);
 #  define _ALL_SOURCE
-/*#  include <pwd.h>*/
 #  include <procinfo.h>
 #  define USE_GETPROCS
 
@@ -59,22 +58,23 @@ extern getargs(struct ProcInfo *, int, char *, int);
 #  define PSVARS	&P[i].uid, &P[i].pid, &P[i].ppid, &P[i].pgid, P[i].cmd
 /************************************************************************/
 #elif defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__APPLE__)
-/* NetBSD contributed by Gary D. Duzan <gary@wheel.tiac.net>
- * FreeBSD contributed by Randall Hopper <rhh@ct.picker.com> 
- * wide output format fix by Jeff Brown <jabrown@caida.org>
- * (Net|Open|Free)BSD & Darwin merged by Ralf Meyer <ralf@thp.Uni-Duisburg.DE> */
+/* NetBSD contributed by Gary D. Duzan <gary AT wheel.tiac.net>
+ * FreeBSD contributed by Randall Hopper <rhh AT ct.picker.com> 
+ * Darwin / Mac OS X patch by Yuji Yamano <yyamano AT kt.rim.or.jp>
+ * wide output format fix for NetBSD by Jeff Brown <jabrown AT caida.org>
+ * (Net|Open|Free)BSD & Darwin merged by Ralf Meyer <ralf AT thp.Uni-Duisburg.DE> */
 #  define HAS_PGID
 #  define PSCMD 	"ps -axwwo user,pid,ppid,pgid,command"
 #  define PSFORMAT 	"%s %ld %ld %ld %[^\n]"
 #  define PSVARS	P[i].name, &P[i].pid, &P[i].ppid, &P[i].pgid, P[i].cmd
 /************************************************************************/
 #elif defined(sun) && (!defined(__SVR4)) /* Solaris 1.x */
-/* contributed by L. Mark Larsen <mlarsen@ptdcs2.intel.com> */
-/* new cpp criteria by Pierre Belanger <belanger@risq.qc.ca> */
+/* contributed by L. Mark Larsen <mlarsen AT ptdcs2.intel.com> */
+/* new cpp criteria by Pierre Belanger <belanger AT risq.qc.ca> */
 #  define solaris1x
 #  define UID2USER
 #  ifdef mc68000
-/* contributed by Paul Kern <pkern@utcc.utoronto.ca> */
+/* contributed by Paul Kern <pkern AT utcc.utoronto.ca> */
 #    define PSCMD 	"ps laxw"
 #    define PSFORMAT 	"%*7c%ld %ld %ld %*d %*d %*d %*x %*d %*d %*x %*14c %[^\n]"
 #    define uid_t	int
@@ -86,13 +86,13 @@ extern getargs(struct ProcInfo *, int, char *, int);
 #  endif
 /************************************************************************/
 #elif defined(sun) && (defined(__SVR4)) /* Solaris 2.x */
-/* contributed by Pierre Belanger <belanger@risq.qc.ca> */
+/* contributed by Pierre Belanger <belanger AT risq.qc.ca> */
 #  define solaris2x
 #  define PSCMD         "ps -ef"
 #  define PSFORMAT      "%s %ld %ld %*d %*s %*s %*s %[^\n]"
 /************************************************************************/
 #elif defined(bsdi)
-/* contributed by Dean Gaudet <dgaudet@hotwired.com> */
+/* contributed by Dean Gaudet <dgaudet AT hotwired.com> */
 #  define UID2USER
 #  define PSCMD 	"ps laxw"
 #  define PSFORMAT 	"%ld %ld %ld %*d %*d %*d %*d %*d %*s %*s %*s %*s %[^\n]"
@@ -159,7 +159,7 @@ struct TreeChars {
 
 enum { G_ASCII = 0, G_PC850 = 1, G_VT100 = 2, G_LAST };
 
-/* VT sequences contributed by Randall Hopper <rhh@ct.picker.com> */
+/* VT sequences contributed by Randall Hopper <rhh AT ct.picker.com> */
 static struct TreeChars TreeChars[] = {
   /* SS          PP          G       N       C       B       L      sg      eg      init */
   { "--",       "-+",       "=",    "-",    "|",    "|",    "\\",   "",     "",     ""             }, /*Ascii*/
@@ -394,7 +394,7 @@ int GetProcesses(void) {
 #endif
   char line[MAXLINE], command[] = PSCMD;
   
-  /* file read code contributed by Paul Kern <pkern@utcc.utoronto.ca> */
+  /* file read code contributed by Paul Kern <pkern AT utcc.utoronto.ca> */
   if (input != NULL) {
     if (strcmp(input, "-") == 0)
       tn = stdin;
@@ -455,7 +455,7 @@ int GetProcesses(void) {
     { /* SunOS allows columns to run together.  With the -j option, the CPU
        * time used can run into the numeric user id, so make sure there is
        * space between these two columns.  Also, the order of the desired
-       * items is different. (L. Mark Larsen <mlarsen@ptdcs2.intel.com>)
+       * items is different. (L. Mark Larsen <mlarsen AT ptdcs2.intel.com>)
        */
       char buf1[45], buf2[MAXLINE];
       buf1[44] = '\0';
@@ -745,7 +745,7 @@ int main(int argc, char **argv) {
 }
 
 #ifdef NEED_STRSTR
-/* Contributed by Paul Kern <pkern@utcc.utoronto.ca> */
+/* Contributed by Paul Kern <pkern AT utcc.utoronto.ca> */
 static char * strstr(s1, s2)
      register char *s1, *s2;
 {
@@ -761,6 +761,10 @@ static char * strstr(s1, s2)
 
 /*
  * $Log: pstree.c,v $
+ * Revision 2.19  2003/05/26 15:33:35  fred
+ * Merged FreeBSD, (Open|Net)BSD; added Darwin (APPLE), fixed wide output
+ * in FreeBSD
+ *
  * Revision 2.18  2003/03/13 18:53:22  fred
  * Added getenv("COLUMNS"), cosmetic changes
  *
@@ -776,7 +780,7 @@ static char * strstr(s1, s2)
  *
  * Revision 2.15  2000-03-01 10:18:56+01  fred
  * Added process group support for {Net|Open}BSD following a suggestion
- * by Ralf Meyer <ralf@thp.Uni-Duisburg.de>
+ * by Ralf Meyer <ralf AT thp.Uni-Duisburg.de>
  *
  * Revision 2.14  1999-03-22 20:45:02+01  fred
  * Fixed bug when line longer than MAXLINE, set MAXLINE=512
@@ -786,14 +790,14 @@ static char * strstr(s1, s2)
  *
  * Revision 2.12  1998-12-07 17:08:59+01  fred
  * Added -f option and sun 68000 support by Paul Kern
- * <pkern@utcc.utoronto.ca>
+ * <pkern AT utcc.utoronto.ca>
  *
  * Revision 2.11  1998-05-23 13:30:28+02  fred
  * Added vt100 sequences, NetBSD support
  *
  * Revision 2.10  1998-02-02 15:04:57+01  fred
  * Fixed bug in MakeTree()/get_pid_index() when parent doesn't
- * exist. Thanks to Igor Schein <igor@andrew.air-boston.com> for the bug
+ * exist. Thanks to Igor Schein <igor AT andrew.air-boston.com> for the bug
  * report.
  *
  * Revision 2.9  1998-01-07 16:55:26+01  fred
