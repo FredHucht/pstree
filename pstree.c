@@ -3,9 +3,12 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 1.10 1996-09-17 21:45:35+02 fred Exp fred $
+ * $Id: pstree.c,v 1.11 1996-09-17 21:52:52+02 fred Exp fred $
  *
  * $Log: pstree.c,v $
+ * Revision 1.11  1996-09-17 21:52:52+02  fred
+ * revision added
+ *
  * Revision 1.10  1996-09-17 21:45:35+02  fred
  * replace \n and \t with ? in output
  *
@@ -16,9 +19,9 @@
  */
 
 static char *WhatString[]= {
-  "@(#)pstree $Revision:$ by Fred Hucht (C) 1993-95",
+  "@(#)pstree $Revision: 1.11 $ by Fred Hucht (C) 1993-95",
   "@(#)EMail:fred@thp.Uni-Duisburg.DE",
-  "$Id: pstree.c,v 1.10 1996-09-17 21:45:35+02 fred Exp fred $"
+  "$Id: pstree.c,v 1.11 1996-09-17 21:52:52+02 fred Exp fred $"
 };
 
 #define MAXLINE 256
@@ -383,7 +386,8 @@ void Pstree(long pid) {
 
 void Usage(void) {
   fprintf(stderr,
-	  "%s, %s\n\n"
+	  "%s\n"
+	  "%s\n\n"
 	  "Usage: %s [-a] "
 #ifdef DEBUG
 	  "[-d] "
