@@ -3,9 +3,12 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id$
+ * $Id: pstree.c,v 2.9 1998-01-07 16:55:26+01 fred Exp $
  *
- * $Log$
+ * $Log: pstree.c,v $
+ * Revision 2.9  1998-01-07 16:55:26+01  fred
+ * Added support for getprocs()
+ *
  * Revision 2.9  1998-01-06 17:13:19+01  fred
  * Added support for getprocs() under AIX
  *
@@ -52,9 +55,9 @@
  */
 
 static char *WhatString[]= {
-  "@(#)pstree $Revision$ by Fred Hucht (C) 1993-1997",
+  "@(#)pstree $Revision: 2.9 $ by Fred Hucht (C) 1993-1997",
   "@(#)EMail:fred@thp.Uni-Duisburg.DE",
-  "$Id$"
+  "$Id: pstree.c,v 2.9 1998-01-07 16:55:26+01 fred Exp $"
 };
 
 #define MAXLINE 256
@@ -405,8 +408,8 @@ int GetProcesses(void) {
 #endif /* _AIX */
 
 int get_pid_index(long pid) {
-  int i = 0;
-  while (i < NProc && P[i].pid != pid) i++; /* Search process */
+  int i;
+  for (i = NProc - 1;i >= 0 && P[i].pid != pid; i--); /* Search process */
   return i;
 }
 
@@ -417,16 +420,16 @@ void MakeTree(void) {
    * of it's parent or as sister of first child of it's parent */
   int i, idx;
   
-  for (i = 0; i < NProc; i++) if (P[i].pid != 0) {
-    P[i].parent = get_pid_index(P[i].ppid);
-    
-    idx = P[i].parent;
-    
-    if (P[idx].child == -1)
-      P[idx].child = i;
-    else {
-      for (idx = P[idx].child; EXIST(P[idx].sister); idx = P[idx].sister);
-      P[idx].sister = i;
+  for (i = 0; i < NProc; i++) {
+    idx = get_pid_index(P[i].ppid);
+    if (idx != i && idx != -1) { /* valid process, not me */
+      P[i].parent = idx;
+      if (P[idx].child == -1)
+	P[idx].child = i;
+      else {
+	for (idx = P[idx].child; EXIST(P[idx].sister); idx = P[idx].sister);
+	P[idx].sister = i;
+      }
     }
   }
 }
