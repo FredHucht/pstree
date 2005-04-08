@@ -3,12 +3,12 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.25 2004-05-14 16:41:39+02 fred Exp fred $
+ * $Id: pstree.c,v 2.26 2004-10-15 13:59:03+02 fred Exp fred $
  */
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.25 $ by Fred Hucht (C) 1993-2004",
+  "@(#)pstree $Revision: 2.26 $ by Fred Hucht (C) 1993-2004",
   "@(#)EMail: fred AT thp.Uni-Duisburg.de",
-  "$Id: pstree.c,v 2.25 2004-05-14 16:41:39+02 fred Exp fred $"
+  "$Id: pstree.c,v 2.26 2004-10-15 13:59:03+02 fred Exp fred $"
 };
 
 #define MAXLINE 512
@@ -525,9 +525,14 @@ int GetRootPid(void) {
   for (me = 0; me < NProc; me++) {
     if (P[me].ppid == 0) return P[me].pid;
   }
+  /* OK, still nothing found. Maybe it is FreeBSD and won't show foreign
+   * processes. So we also accept PPID == 1 */
+  for (me = 0; me < NProc; me++) {
+    if (P[me].ppid == 1) return P[me].pid;
+  }
   /* Should not happen */
   fprintf(stderr,
-	  "%s: No process found with PID == 1 || PPID == 0, contact author.\n",
+	  "%s: No process found with PID == 1 || PPID == 0 || PPID == 1, contact author.\n",
 	  Progname);
   exit(1);
 }
@@ -860,6 +865,10 @@ static char * strstr(s1, s2)
 
 /*
  * $Log: pstree.c,v $
+ * Revision 2.26  2004-10-15 13:59:03+02  fred
+ * Fixed small bug with char/int variable c
+ * reported by Tomas Dvorak <tomas_dvorak AT mailcan.com>
+ *
  * Revision 2.25  2004-05-14 16:41:39+02  fred
  * Added workaround for spurious blank lines in ps output under AIX 5.2
  * reported by Dean Rowswell <rowswell AT ca.ibm.com>
