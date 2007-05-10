@@ -1,14 +1,14 @@
-/*	This is pstree written by Fred Hucht (c) 1993-2004	*
+/*	This is pstree written by Fred Hucht (c) 1993-2007	*
  *	EMail: fred AT thp.Uni-Duisburg.de			*
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.28 2007-05-10 22:01:07+02 fred Exp fred $
+ * $Id: pstree.c,v 2.29 2007-05-10 22:37:13+02 fred Exp fred $
  */
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.28 $ by Fred Hucht (C) 1993-2004",
+  "@(#)pstree $Revision: 2.29 $ by Fred Hucht (C) 1993-2007",
   "@(#)EMail: fred AT thp.Uni-Duisburg.de",
-  "$Id: pstree.c,v 2.28 2007-05-10 22:01:07+02 fred Exp fred $"
+  "$Id: pstree.c,v 2.29 2007-05-10 22:37:13+02 fred Exp fred $"
 };
 
 #define MAXLINE 512
@@ -48,7 +48,7 @@ extern getargs(struct ProcInfo *, int, char *, int);
 #  define PSVARS	&P[i].uid, &P[i].pid, &P[i].ppid, &P[i].pgid, &P[i].thcount, P[i].cmd
 #  define PSVARSN	6
 /************************************************************************/
-#elif defined(__linux) || (defined __alpha && defined(_SYSTYPE_BSD))
+#elif defined(__linux) || (defined __alpha && defined(_SYSTYPE_BSD) || defined (Tru64))
 /* TRU64 contributed by Frank Parkin <fparki AT acxiom.co.uk>
  */
 #  ifdef __linux
@@ -135,6 +135,10 @@ extern getargs(struct ProcInfo *, int, char *, int);
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>		/* For str...() */
+#ifdef NEED_SNPRINTF
+#include <stdarg.h>
+int snprintf(char *, int, char *, ...);
+#endif
 #include <unistd.h>		/* For getopt() */
 #include <pwd.h>		/* For getpwnam() */
 
@@ -212,7 +216,7 @@ void uid2user(uid_t uid, char *name, int len) {
   } un[NUMUN];
   static short n = 0;
   short i;
-  static char unknown[] = "unknown";
+  char uid_name[32];
   char *found;
 #ifdef DEBUG
   if (name == NULL) {
@@ -226,11 +230,12 @@ void uid2user(uid_t uid, char *name, int len) {
     found = un[i].name;
   } else {
     struct passwd *pw = getpwuid(uid);
-    if (pw == NULL) {
-      /* fix by Philippe Torche */
-      found = unknown;
-    } else {
+    if (pw) {
       found = pw->pw_name;
+    } else {
+      /* fix by Stan Sieler & Philippe Torche */
+      snprintf(uid_name, sizeof(uid_name), "#%d", uid);
+      found = uid_name;
     }
     if (n < NUMUN) {
       un[n].uid = uid;
@@ -705,7 +710,7 @@ void Usage(void) {
 #ifdef DEBUG
 	  "[-d] "
 #endif
-	  "[-f file] [-g] [-u user] [-U] [-s string] [-p pid] [-w] [pid ...]\n"
+	  "[-f file] [-g n] [-u user] [-U] [-s string] [-p pid] [-w] [pid ...]\n"
 	  /*"   -a        align output\n"*/
 #ifdef DEBUG
 	  "   -d        print debugging info to stderr\n"
@@ -890,8 +895,28 @@ static char * strstr(s1, s2)
 }
 #endif /* NEED_STRSTR */
 
+#ifdef NEED_SNPRINTF
+/* Contributed by Michael E White */
+int snprintf(char *name, int namesiz, char *format, ...)
+{
+  int retval;
+  char bigbuf[1024] = {'\0'};  
+  va_list ap;
+  va_start(ap, format);
+  retval = vsprintf(bigbuf,format,ap);
+  va_end(ap);
+  if (retval > namesiz) retval = namesiz;
+  strncpy(name, bigbuf, retval);
+  name[retval] = '\0';
+  return retval;
+}
+#endif  /* NEED_SNPRINTF */
+
 /*
  * $Log: pstree.c,v $
+ * Revision 2.29  2007-05-10 22:37:13+02  fred
+ * Added fix for Solaris Zone and bug fix from Philippe Torche
+ *
  * Revision 2.28  2007-05-10 22:01:07+02  fred
  * Added new determination of window width
  *
