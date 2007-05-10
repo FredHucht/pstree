@@ -3,12 +3,12 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.27 2005-04-08 22:08:45+02 fred Exp fred $
+ * $Id: pstree.c,v 2.28 2007-05-10 22:01:07+02 fred Exp fred $
  */
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.27 $ by Fred Hucht (C) 1993-2004",
+  "@(#)pstree $Revision: 2.28 $ by Fred Hucht (C) 1993-2004",
   "@(#)EMail: fred AT thp.Uni-Duisburg.de",
-  "$Id: pstree.c,v 2.27 2005-04-08 22:08:45+02 fred Exp fred $"
+  "$Id: pstree.c,v 2.28 2007-05-10 22:01:07+02 fred Exp fred $"
 };
 
 #define MAXLINE 512
@@ -212,6 +212,7 @@ void uid2user(uid_t uid, char *name, int len) {
   } un[NUMUN];
   static short n = 0;
   short i;
+  static char unknown[] = "unknown";
   char *found;
 #ifdef DEBUG
   if (name == NULL) {
@@ -225,7 +226,12 @@ void uid2user(uid_t uid, char *name, int len) {
     found = un[i].name;
   } else {
     struct passwd *pw = getpwuid(uid);
-    found = pw->pw_name;
+    if (pw == NULL) {
+      /* fix by Philippe Torche */
+      found = unknown;
+    } else {
+      found = pw->pw_name;
+    }
     if (n < NUMUN) {
       un[n].uid = uid;
       strncpy(un[n].name, found, 9);
@@ -518,7 +524,7 @@ int GetProcesses(void) {
 int GetRootPid(void) {
   int me;
   for (me = 0; me < NProc; me++) {
-    if (P[me].pid == -1) return P[me].pid;
+    if (P[me].pid == 1) return P[me].pid;
   }
   /* PID == 1 not found, so we'll take process with PPID == 0
    * Fix for TRU64 TruCluster with uniq PIDs
@@ -533,9 +539,15 @@ int GetRootPid(void) {
   for (me = 0; me < NProc; me++) {
     if (P[me].ppid == 1) return P[me].pid;
   }
+  /* Still nothing. Maybe it is something like Solaris Zone. We'll take
+   * the process with PID == PPID */
+  for (me = 0; me < NProc; me++) {
+    if (P[me].pid == P[me].ppid) return P[me].pid;
+  }
   /* Should not happen */
   fprintf(stderr,
-	  "%s: No process found with PID == 1 || PPID == 0 || PPID == 1, contact author.\n",
+	  "%s: No process found with PID == 1 || PPID == 0 || PPID == 1\n"
+	  "          || PID == PPID, contact author.\n",
 	  Progname);
   exit(1);
 }
@@ -880,6 +892,9 @@ static char * strstr(s1, s2)
 
 /*
  * $Log: pstree.c,v $
+ * Revision 2.28  2007-05-10 22:01:07+02  fred
+ * Added new determination of window width
+ *
  * Revision 2.27  2005-04-08 22:08:45+02  fred
  * Also accept PPID==1 if nothing else is found. Should fix problem with
  * FreeBSD and security.bsd.see_other_uids=0.
