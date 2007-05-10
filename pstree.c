@@ -3,12 +3,12 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.26 2004-10-15 13:59:03+02 fred Exp fred $
+ * $Id: pstree.c,v 2.27 2005-04-08 22:08:45+02 fred Exp fred $
  */
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.26 $ by Fred Hucht (C) 1993-2004",
+  "@(#)pstree $Revision: 2.27 $ by Fred Hucht (C) 1993-2004",
   "@(#)EMail: fred AT thp.Uni-Duisburg.de",
-  "$Id: pstree.c,v 2.26 2004-10-15 13:59:03+02 fred Exp fred $"
+  "$Id: pstree.c,v 2.27 2005-04-08 22:08:45+02 fred Exp fred $"
 };
 
 #define MAXLINE 512
@@ -137,6 +137,9 @@ extern getargs(struct ProcInfo *, int, char *, int);
 #include <string.h>		/* For str...() */
 #include <unistd.h>		/* For getopt() */
 #include <pwd.h>		/* For getpwnam() */
+
+#include <sys/ioctl.h>		/* For TIOCGSIZE/TIOCGWINSZ */
+//#include <termios.h>
 
 #ifdef DEBUG
 # include <errno.h>
@@ -816,8 +819,16 @@ int main(int argc, char **argv) {
   if (wide)
     Columns = MAXLINE - 1;
   else {
-#ifdef HAS_TERMDEF
+#if defined (HAS_TERMDEF)
     Columns = atoi((char*)termdef(fileno(stdout),'c'));
+#elif defined(TIOCGWINSZ)
+    struct winsize winsize;
+    ioctl(fileno(stdout), TIOCGWINSZ, &winsize);
+    Columns = winsize.ws_col;
+#elif defined(TIOCGSIZE)
+    struct ttysize ttysize;
+    ioctl(fileno(stdout), TIOCGSIZE, &ttysize);
+    Columns = ttysize.ts_cols;
 #else
     char *env = getenv("COLUMNS");
     Columns = env ? atoi(env) : 80;
@@ -830,6 +841,10 @@ int main(int argc, char **argv) {
   Columns += strlen(C->sg) + strlen(C->eg); /* Don't count hidden chars */
 
   if (Columns >= MAXLINE) Columns = MAXLINE - 1;
+  
+#ifdef DEBUG
+  if (debug) fprintf(stderr, "Columns = %d\n", Columns);
+#endif
   
   MakeTree();
   MarkProcs();
@@ -865,6 +880,10 @@ static char * strstr(s1, s2)
 
 /*
  * $Log: pstree.c,v $
+ * Revision 2.27  2005-04-08 22:08:45+02  fred
+ * Also accept PPID==1 if nothing else is found. Should fix problem with
+ * FreeBSD and security.bsd.see_other_uids=0.
+ *
  * Revision 2.26  2004-10-15 13:59:03+02  fred
  * Fixed small bug with char/int variable c
  * reported by Tomas Dvorak <tomas_dvorak AT mailcan.com>
