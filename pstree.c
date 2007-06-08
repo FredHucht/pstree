@@ -3,12 +3,12 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.29 2007-05-10 22:37:13+02 fred Exp fred $
+ * $Id: pstree.c,v 2.30 2007-05-10 23:13:04+02 fred Exp fred $
  */
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.29 $ by Fred Hucht (C) 1993-2007",
+  "@(#)pstree $Revision: 2.30 $ by Fred Hucht (C) 1993-2007",
   "@(#)EMail: fred AT thp.Uni-Duisburg.de",
-  "$Id: pstree.c,v 2.29 2007-05-10 22:37:13+02 fred Exp fred $"
+  "$Id: pstree.c,v 2.30 2007-05-10 23:13:04+02 fred Exp fred $"
 };
 
 #define MAXLINE 512
@@ -201,7 +201,7 @@ int debug = FALSE;
 
 struct Proc {
   long uid, pid, ppid, pgid;
-  char name[9], cmd[MAXLINE];
+  char name[32], cmd[MAXLINE];
   int  print;
   long parent, child, sister;
   unsigned long thcount;
@@ -212,7 +212,7 @@ void uid2user(uid_t uid, char *name, int len) {
 #define NUMUN 128
   static struct un_ {
     uid_t uid;
-    char name[9];
+    char name[32];
   } un[NUMUN];
   static short n = 0;
   short i;
@@ -914,6 +914,9 @@ int snprintf(char *name, int namesiz, char *format, ...)
 
 /*
  * $Log: pstree.c,v $
+ * Revision 2.30  2007-05-10 23:13:04+02  fred
+ * *** empty log message ***
+ *
  * Revision 2.29  2007-05-10 22:37:13+02  fred
  * Added fix for Solaris Zone and bug fix from Philippe Torche
  *
