@@ -3,12 +3,12 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.30 2007-05-10 23:13:04+02 fred Exp fred $
+ * $Id: pstree.c,v 2.31 2007-06-08 17:45:23+02 fred Exp fred $
  */
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.30 $ by Fred Hucht (C) 1993-2007",
+  "@(#)pstree $Revision: 2.31 $ by Fred Hucht (C) 1993-2007",
   "@(#)EMail: fred AT thp.Uni-Duisburg.de",
-  "$Id: pstree.c,v 2.30 2007-05-10 23:13:04+02 fred Exp fred $"
+  "$Id: pstree.c,v 2.31 2007-06-08 17:45:23+02 fred Exp fred $"
 };
 
 #define MAXLINE 512
@@ -194,6 +194,9 @@ short showall = TRUE, soption = FALSE, Uoption = FALSE;
 char *name = "", *str = NULL, *Progname;
 long ipid = -1;
 char *input = NULL;
+
+int atLdepth=0;    /* LOPTION - track how deep in the print chain we are */
+int maxLdepth=100; /* LOPTION - will be changed by -l n option */
 
 #ifdef DEBUG
 int debug = FALSE;
@@ -677,6 +680,10 @@ void PrintTree(int idx, const char *head) {
   if (head[0] == '\0' && !P[idx].print) return;
   
   if (P[idx].thcount > 1) snprintf(thread, sizeof(thread), "[%ld]", P[idx].thcount);
+ 
+  if(atLdepth == maxLdepth) return;    /* LOPTION */
+  ++atLdepth;                          /* LOPTION */
+ 
   
   snprintf(out, sizeof(out),
 	   "%s%s%s%s%s%s %05ld %s %s%s" /*" (ch=%d, si=%d, pr=%d)"*/,
@@ -700,6 +707,9 @@ void PrintTree(int idx, const char *head) {
   
   for (child = P[idx].child; EXIST(child); child = P[child].sister)
     PrintTree(child, nhead);
+
+  --atLdepth;                          /* LOPTION */
+
 }
 
 void Usage(void) {
@@ -718,6 +728,7 @@ void Usage(void) {
 	  "   -f file   read input from <file> (- is stdin) instead of running\n"
 	  "             \"%s\"\n"
 	  "   -g n      use graphics chars for tree. n=1: IBM-850, n=2: VT100\n"
+	  "   -l n      print tree to n level deep\n"
 	  "   -u user   show only branches containing processes of <user>\n"
 	  "   -U        don't show branches containing only root processes\n"
           "   -s string show only branches containing process with <string> in commandline\n"
@@ -745,7 +756,7 @@ int main(int argc, char **argv) {
   Progname = strrchr(argv[0],'/');
   Progname = (NULL == Progname) ? argv[0] : Progname + 1;
   
-  while ((ch = getopt(argc, argv, "df:g:hp:s:u:Uw?")) != EOF)
+  while ((ch = getopt(argc, argv, "df:g:hl:p:s:u:Uw?")) != EOF)
     switch(ch) {
       /*case 'a':
 	align   = TRUE;
@@ -767,6 +778,10 @@ int main(int argc, char **argv) {
       }
       C = &TreeChars[graph];
       break;
+    case 'l':                                 /* LOPTION */
+      maxLdepth = atoi(optarg);               /* LOPTION */
+      if(maxLdepth < 1) maxLdepth = 1;        /* LOPTION */
+      break;                                  /* LOPTION */
     case 'p':
       showall = FALSE;
       ipid    = atoi(optarg);
@@ -914,6 +929,9 @@ int snprintf(char *name, int namesiz, char *format, ...)
 
 /*
  * $Log: pstree.c,v $
+ * Revision 2.31  2007-06-08 17:45:23+02  fred
+ * Fixed problem with users with long login name (Reported by Oleg A. Mamontov)
+ *
  * Revision 2.30  2007-05-10 23:13:04+02  fred
  * *** empty log message ***
  *
