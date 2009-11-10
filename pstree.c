@@ -1,17 +1,17 @@
-/*	This is pstree written by Fred Hucht (c) 1993-2007	*
+/*	This is pstree written by Fred Hucht (c) 1993-2010	*
  *	EMail: fred AT thp.Uni-Duisburg.de			*
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.31 2007-06-08 17:45:23+02 fred Exp fred $
+ * $Id: pstree.c,v 2.32 2007-10-26 21:39:50+02 fred Exp $
  */
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.31 $ by Fred Hucht (C) 1993-2007",
+  "@(#)pstree $Revision: 2.32 $ by Fred Hucht (C) 1993-2007",
   "@(#)EMail: fred AT thp.Uni-Duisburg.de",
-  "$Id: pstree.c,v 2.31 2007-06-08 17:45:23+02 fred Exp fred $"
+  "$Id: pstree.c,v 2.32 2007-10-26 21:39:50+02 fred Exp $"
 };
 
-#define MAXLINE 512
+#define MAXLINE 8192
 
 #if defined(_AIX) || defined(___AIX)	/* AIX >= 3.1 */
 /* Under AIX, we directly read the process table from the kernel */
@@ -143,7 +143,7 @@ int snprintf(char *, int, char *, ...);
 #include <pwd.h>		/* For getpwnam() */
 
 #include <sys/ioctl.h>		/* For TIOCGSIZE/TIOCGWINSZ */
-//#include <termios.h>
+/* #include <termios.h> */
 
 #ifdef DEBUG
 # include <errno.h>
@@ -176,17 +176,26 @@ struct TreeChars {
  * | \-+=   01112 ...    B LPPG 01112 ...
  * |   |--= 01113 ...    B   CSSG 01113 ...
  * |   \--= 01114 ...    B   LSSG 01114 ...
- * \-+- 01115 ...        LSSN 01115 ...
+ * \--- 01115 ...        LSSN 01115 ...
  */
 
-enum { G_ASCII = 0, G_PC850 = 1, G_VT100 = 2, G_LAST };
+enum { G_ASCII = 0, G_PC850 = 1, G_VT100 = 2, G_UTF8 = 3, G_LAST };
 
 /* VT sequences contributed by Randall Hopper <rhh AT ct.picker.com> */
+/* UTF8 sequences contributed by Mark-Andre Hopf <mhopf AT mark13.org> */
 static struct TreeChars TreeChars[] = {
   /* SS          PP          G       N       C       B       L      sg      eg      init */
   { "--",       "-+",       "=",    "-",    "|",    "|",    "\\",   "",     "",     ""             }, /*Ascii*/
   { "\304\304", "\304\302", "\372", "\304", "\303", "\263", "\300", "",     "",     ""             }, /*Pc850*/
-  { "qq",       "qw",       "`",    "q",    "t",    "x",    "m",    "\016", "\017", "\033(B\033)0" }  /*Vt100*/
+  { "qq",       "qw",       "`",    "q",    "t",    "x",    "m",    "\016", "\017", "\033(B\033)0" }, /*Vt100*/
+  { "\342\224\200\342\224\200",
+    /**/        "\342\224\200\342\224\254",
+    /**/                    "=",
+    /**/                            "\342\224\200",
+    /**/                                    "\342\224\234",
+    /**/                                            "\342\224\202",
+    /**/                                                    "\342\224\224",
+    /**/                                                            "",     "",     ""             }  /*UTF8*/
 }, *C;
 
 int MyPid, NProc, Columns, RootPid;
@@ -727,7 +736,7 @@ void Usage(void) {
 #endif
 	  "   -f file   read input from <file> (- is stdin) instead of running\n"
 	  "             \"%s\"\n"
-	  "   -g n      use graphics chars for tree. n=1: IBM-850, n=2: VT100\n"
+	  "   -g n      use graphics chars for tree. n=1: IBM-850, n=2: VT100, n=3: UTF-8\n"
 	  "   -l n      print tree to n level deep\n"
 	  "   -u user   show only branches containing processes of <user>\n"
 	  "   -U        don't show branches containing only root processes\n"
@@ -929,6 +938,9 @@ int snprintf(char *name, int namesiz, char *format, ...)
 
 /*
  * $Log: pstree.c,v $
+ * Revision 2.32  2007-10-26 21:39:50+02  fred
+ * Added option -l provided by Michael E. White <mewhite AT us.ibm.com>
+ *
  * Revision 2.31  2007-06-08 17:45:23+02  fred
  * Fixed problem with users with long login name (Reported by Oleg A. Mamontov)
  *
