@@ -1,14 +1,14 @@
-/*	This is pstree written by Fred Hucht (c) 1993-2010	*
- *	EMail: fred AT thp.Uni-Duisburg.de			*
+/*	This is pstree written by Fred Hucht (c) 1993-2013	*
+ *	EMail: fred AT thp.uni-due.de				*
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.32 2007-10-26 21:39:50+02 fred Exp $
+ * $Id: pstree.c,v 2.33 2009-11-10 22:12:39+01 fred Exp fred $
  */
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.32 $ by Fred Hucht (C) 1993-2007",
-  "@(#)EMail: fred AT thp.Uni-Duisburg.de",
-  "$Id: pstree.c,v 2.32 2007-10-26 21:39:50+02 fred Exp $"
+  "@(#)pstree $Revision: 2.33 $ by Fred Hucht (C) 1993-2013",
+  "@(#)EMail: fred AT thp.uni-due.de",
+  "$Id: pstree.c,v 2.33 2009-11-10 22:12:39+01 fred Exp fred $"
 };
 
 #define MAXLINE 8192
@@ -920,7 +920,7 @@ static char * strstr(s1, s2)
 #endif /* NEED_STRSTR */
 
 #ifdef NEED_SNPRINTF
-/* Contributed by Michael E White */
+/* Contributed by Michael E White, fix by Stan Sieler */
 int snprintf(char *name, int namesiz, char *format, ...)
 {
   int retval;
@@ -929,15 +929,20 @@ int snprintf(char *name, int namesiz, char *format, ...)
   va_start(ap, format);
   retval = vsprintf(bigbuf,format,ap);
   va_end(ap);
-  if (retval > namesiz) retval = namesiz;
-  strncpy(name, bigbuf, retval);
-  name[retval] = '\0';
+  if (namesiz > 0) {
+    if (retval >= namesiz) retval = namesiz - 1;
+    strncpy(name, bigbuf, retval);
+    name[retval] = '\0';
+  }
   return retval;
 }
 #endif  /* NEED_SNPRINTF */
 
 /*
  * $Log: pstree.c,v $
+ * Revision 2.33  2009-11-10 22:12:39+01  fred
+ * Added UTF8, enlarged MAXLINE
+ *
  * Revision 2.32  2007-10-26 21:39:50+02  fred
  * Added option -l provided by Michael E. White <mewhite AT us.ibm.com>
  *
