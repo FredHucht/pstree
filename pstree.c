@@ -3,12 +3,12 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.33 2009-11-10 22:12:39+01 fred Exp fred $
+ * $Id: pstree.c,v 2.34 2013-02-27 16:57:25+01 fred Exp fred $
  */
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.33 $ by Fred Hucht (C) 1993-2013",
+  "@(#)pstree $Revision: 2.34 $ by Fred Hucht (C) 1993-2013",
   "@(#)EMail: fred AT thp.uni-due.de",
-  "$Id: pstree.c,v 2.33 2009-11-10 22:12:39+01 fred Exp fred $"
+  "$Id: pstree.c,v 2.34 2013-02-27 16:57:25+01 fred Exp fred $"
 };
 
 #define MAXLINE 8192
@@ -920,26 +920,56 @@ static char * strstr(s1, s2)
 #endif /* NEED_STRSTR */
 
 #ifdef NEED_SNPRINTF
-/* Contributed by Michael E White, fix by Stan Sieler */
-int snprintf(char *name, int namesiz, char *format, ...)
-{
-  int retval;
-  char bigbuf[1024] = {'\0'};  
-  va_list ap;
-  va_start(ap, format);
-  retval = vsprintf(bigbuf,format,ap);
-  va_end(ap);
-  if (namesiz > 0) {
-    if (retval >= namesiz) retval = namesiz - 1;
-    strncpy(name, bigbuf, retval);
-    name[retval] = '\0';
-  }
-  return retval;
+int snprintf (char *s, int namesiz, char *format, ...) {      
+  /* Original portable version by Michael E. White.
+     This version of Stan Sieler (sieler AT allegro.com) */
+
+  int  chars_needed;              /* not including trailing null */
+  
+  char bigbuf [1024] = {'\0'};    /* note: 1024 is a guess, and may not be large enough! */
+  
+  va_list ap;         /* some systems allow "va_list ap = NULL;", others *do not* (like MACH) */
+  
+  va_start (ap, format);
+  chars_needed = vsprintf (bigbuf, format, ap); /* note: chars_needed does not include trailing null */
+  va_end (ap);
+
+  /* 0 is documented as "don't write anything" ... while not specifically spelled out
+     (e.g., does it also mean "don't internally call vsprintf"?), one can imply that it simply means
+     "don't write to the output buffer 's'.  (Otherwise, if we didn't call vsprintf, we wouldn't
+     know what value of chars_needed to return!) */
+
+   if (namesiz <= 0)
+     ;     /* Don't touch 's' buffer at all! Note: on some systems, a negative namesiz
+	      will cause the process to abort. By checking for <= 0, not just 0, we differ
+	      in that area, but it's a reasonable difference. */
+   
+   else if (chars_needed >= namesiz)  
+     {     /* oh oh, output too large for 'name' buffer... */
+       memcpy (s, bigbuf, namesiz - 1);
+       s [namesiz - 1] = '\0';
+     }
+   
+   else    /* size is ok */
+     {
+       memcpy (s, bigbuf, chars_needed); /* chars_needed < namesiz */
+       s [chars_needed] = '\0';
+       /* note: above two could be replaced by strcpy (s, bigbuf)
+	  since we know strlen (bigbuf) is acceptable.  
+	  But, why copy byte at a time, comparing to null, when
+	  we *know* the length? */
+     }
+   
+   return chars_needed;    /* May be larger than namesiz, but that's ok
+			      In fact, not just 'ok', it's *useful*! */
 }
 #endif  /* NEED_SNPRINTF */
 
 /*
  * $Log: pstree.c,v $
+ * Revision 2.34  2013-02-27 16:57:25+01  fred
+ * Added snprintf fix by Stan Sieler
+ *
  * Revision 2.33  2009-11-10 22:12:39+01  fred
  * Added UTF8, enlarged MAXLINE
  *
