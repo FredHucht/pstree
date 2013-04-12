@@ -3,12 +3,12 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.34 2013-02-27 16:57:25+01 fred Exp fred $
+ * $Id: pstree.c,v 2.35 2013-02-28 08:33:02+01 fred Exp fred $
  */
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.34 $ by Fred Hucht (C) 1993-2013",
+  "@(#)pstree $Revision: 2.35 $ by Fred Hucht (C) 1993-2013",
   "@(#)EMail: fred AT thp.uni-due.de",
-  "$Id: pstree.c,v 2.34 2013-02-27 16:57:25+01 fred Exp fred $"
+  "$Id: pstree.c,v 2.35 2013-02-28 08:33:02+01 fred Exp fred $"
 };
 
 #define MAXLINE 8192
@@ -389,11 +389,23 @@ int GetProcessesDirect(void) {
   }
   
   for (i = j = 0; i < globbuf.gl_pathc; i++) {
-    char name[32];
+    char *pdir, name[32];
     int c;
     FILE *tn;
-    struct stat stat;
     int k = 0;
+    
+    pdir = globbuf.gl_pathv[globbuf.gl_pathc - i - 1];
+    
+    /* if processes change their UID this change is only reflected in the owner of pdir.
+     * fixed since version 2.36 */
+    {
+      struct stat st;
+      if (stat(pdir, &st) != 0) { /* get uid */
+	continue; /* process vanished since glob() */
+      }
+      P[j].uid = st.st_uid;
+      uid2user(P[j].uid, P[j].name, sizeof(P[j].name));
+    }
     
     snprintf(name, sizeof(name), "%s%s",
 	     globbuf.gl_pathv[globbuf.gl_pathc - i - 1], "/stat");
@@ -401,22 +413,18 @@ int GetProcessesDirect(void) {
     if (tn == NULL) continue; /* process vanished since glob() */
     fscanf(tn, "%ld %s %*c %ld %ld",
 	   &P[j].pid, P[j].cmd, &P[j].ppid, &P[j].pgid);
-    fstat(fileno(tn), &stat);
-    P[j].uid = stat.st_uid;
     fclose(tn);
     P[j].thcount = 1;
     
     snprintf(name, sizeof(name), "%s%s",
 	     globbuf.gl_pathv[globbuf.gl_pathc - i - 1], "/cmdline");
     tn = fopen(name, "r");
-    if (tn == NULL) continue;
+    if (tn == NULL) continue; /* process vanished since glob() */
     while (k < MAXLINE - 1 && EOF != (c = fgetc(tn))) {
       P[j].cmd[k++] = c == '\0' ? ' ' : c;
     }
     if (k > 0) P[j].cmd[k] = '\0';
     fclose(tn);
-    
-    uid2user(P[j].uid, P[j].name, sizeof(P[j].name));
     
 #ifdef DEBUG
     if (debug) fprintf(stderr,
@@ -967,6 +975,9 @@ int snprintf (char *s, int namesiz, char *format, ...) {
 
 /*
  * $Log: pstree.c,v $
+ * Revision 2.35  2013-02-28 08:33:02+01  fred
+ * Added Stan Sieler's fix to my adaption of snprintf fix by Stan Sieler :-)
+ *
  * Revision 2.34  2013-02-27 16:57:25+01  fred
  * Added snprintf fix by Stan Sieler
  *
