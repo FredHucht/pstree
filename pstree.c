@@ -3,12 +3,12 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.35 2013-02-28 08:33:02+01 fred Exp fred $
+ * $Id: pstree.c,v 2.36 2013-04-12 11:47:03+02 fred Exp fred $
  */
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.35 $ by Fred Hucht (C) 1993-2013",
+  "@(#)pstree $Revision: 2.36 $ by Fred Hucht (C) 1993-2013",
   "@(#)EMail: fred AT thp.uni-due.de",
-  "$Id: pstree.c,v 2.35 2013-02-28 08:33:02+01 fred Exp fred $"
+  "$Id: pstree.c,v 2.36 2013-04-12 11:47:03+02 fred Exp fred $"
 };
 
 #define MAXLINE 8192
@@ -206,6 +206,7 @@ char *input = NULL;
 
 int atLdepth=0;    /* LOPTION - track how deep in the print chain we are */
 int maxLdepth=100; /* LOPTION - will be changed by -l n option */
+int compress = FALSE;
 
 #ifdef DEBUG
 int debug = FALSE;
@@ -695,6 +696,7 @@ void PrintTree(int idx, const char *head) {
   int child;
   
   if (head[0] == '\0' && !P[idx].print) return;
+  /*if (!P[idx].print) return;*/
   
   if (P[idx].thcount > 1) snprintf(thread, sizeof(thread), "[%ld]", P[idx].thcount);
  
@@ -721,9 +723,27 @@ void PrintTree(int idx, const char *head) {
   /* Process children */
   snprintf(nhead, sizeof(nhead), "%s%s ", head,
 	   head[0] == '\0' ? "" : EXIST(P[idx].sister) ? C->bar : " ");
-  
-  for (child = P[idx].child; EXIST(child); child = P[child].sister)
+
+  /*
+    if ( compress ) {
+    int c1, c2, flag = 0;
+    for ( c1 = P[idx].child; EXIST(c1); c1 = P[c1].sister ) {
+      for ( c2 = P[c1].sister; EXIST(c2); c2 = P[c2].sister ) {
+	if ( 0 == strcmp(P[c1].cmd, P[c2].cmd) ) {
+	  flag = 1;
+	  printf("%d:%d ", c1, c2);
+	  P[c1].pid = -1;
+	  P[c2].print = FALSE;
+	}
+      }
+    }
+    if ( flag ) printf("\n");
+  }
+  */
+
+  for (child = P[idx].child; EXIST(child); child = P[child].sister) {
     PrintTree(child, nhead);
+  }
 
   --atLdepth;                          /* LOPTION */
 
@@ -737,7 +757,7 @@ void Usage(void) {
 #ifdef DEBUG
 	  "[-d] "
 #endif
-	  "[-f file] [-g n] [-u user] [-U] [-s string] [-p pid] [-w] [pid ...]\n"
+	  "[-f file] [-g n] [-l n] [-u user] [-U] [-s string] [-p pid] [-w] [pid ...]\n"
 	  /*"   -a        align output\n"*/
 #ifdef DEBUG
 	  "   -d        print debugging info to stderr\n"
@@ -751,8 +771,7 @@ void Usage(void) {
           "   -s string show only branches containing process with <string> in commandline\n"
           "   -p pid    show only branches containing process <pid>\n"
 	  "   -w        wide output, not truncated to window width\n"
-	  "   pid ...   process ids to start from, default is 1 (init)\n"
-	  "             use 0 to also show kernel processes\n"
+	  "   pid ...   process ids to start from, default is 1 (probably init)\n"
 	  , WhatString[0] + 4, WhatString[1] + 4, Progname, PSCMD);
 #ifdef HAS_PGID
   fprintf(stderr, "\n%sProcess group leaders are marked with '%s%s%s'.\n",
@@ -773,11 +792,14 @@ int main(int argc, char **argv) {
   Progname = strrchr(argv[0],'/');
   Progname = (NULL == Progname) ? argv[0] : Progname + 1;
   
-  while ((ch = getopt(argc, argv, "df:g:hl:p:s:u:Uw?")) != EOF)
+  while ((ch = getopt(argc, argv, "cdf:g:hl:p:s:u:Uw?")) != EOF)
     switch(ch) {
       /*case 'a':
 	align   = TRUE;
 	break;*/
+    case 'c':
+      compress = TRUE;
+      break;
 #ifdef DEBUG
     case 'd':
       debug   = TRUE;
@@ -975,6 +997,13 @@ int snprintf (char *s, int namesiz, char *format, ...) {
 
 /*
  * $Log: pstree.c,v $
+ * Revision 2.36  2013-04-12 11:47:03+02  fred
+ * Some processes like apache under a recent Linux were listed with UID
+ * root instead of the correct UID, as they use setuid(). We now read the
+ * UID from the owner of /proc/PID instead of /proc/PID/stat, as this
+ * seems to be updated correctly. Thanks to Tom Schmidt
+ * <tschmidt AT micron.com> for pointing out this bug.
+ *
  * Revision 2.35  2013-02-28 08:33:02+01  fred
  * Added Stan Sieler's fix to my adaption of snprintf fix by Stan Sieler :-)
  *
