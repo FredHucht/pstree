@@ -1,14 +1,14 @@
-/*	This is pstree written by Fred Hucht (c) 1993-2013	*
+/*	This is pstree written by Fred Hucht (c) 1993-2015	*
  *	EMail: fred AT thp.uni-due.de				*
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.36 2013-04-12 11:47:03+02 fred Exp fred $
+ * $Id: pstree.c,v 2.37 2015/04/20 10:15:29 fred Exp fred $
  */
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.36 $ by Fred Hucht (C) 1993-2013",
+  "@(#)pstree $Revision: 2.37 $ by Fred Hucht (C) 1993-2015",
   "@(#)EMail: fred AT thp.uni-due.de",
-  "$Id: pstree.c,v 2.36 2013-04-12 11:47:03+02 fred Exp fred $"
+  "$Id: pstree.c,v 2.37 2015/04/20 10:15:29 fred Exp fred $"
 };
 
 #define MAXLINE 8192
@@ -29,7 +29,10 @@ extern char *termdef(int, char);
 #  ifdef USE_GETPROCS
 #    define IFNEW(a,b) a
 #    define ProcInfo procsinfo
+#    ifndef _AIX61
+/* workaround contributed by Michael Staats <michael.staats AT gmx.de> */
 extern getprocs(struct procsinfo *, int, struct fdsinfo *, int, pid_t *, int);
+#    endif /*_AIX61*/
 #  else /*USE_GETPROCS*/
 #    define IFNEW(a,b) b
 #    define ProcInfo procinfo
@@ -37,7 +40,10 @@ extern getproc(struct procinfo *, int, int);
 extern getuser(struct procinfo *, int, void *, int);
 #  endif /*USE_GETPROCS*/
 
+#  ifndef _AIX61
+/* workaround contributed by Michael Staats <michael.staats AT gmx.de> */
 extern getargs(struct ProcInfo *, int, char *, int);
+#  endif /*_AIX61*/
 
 /*#  define PSCMD 	"ps -ekf"
   #  define PSFORMAT 	"%s %ld %ld %*20c %*s %[^\n]"*/
@@ -198,18 +204,18 @@ static struct TreeChars TreeChars[] = {
     /**/                                                            "",     "",     ""             }  /*UTF8*/
 }, *C;
 
-int MyPid, NProc, Columns, RootPid;
-short showall = TRUE, soption = FALSE, Uoption = FALSE;
-char *name = "", *str = NULL, *Progname;
-long ipid = -1;
-char *input = NULL;
+static int MyPid, NProc, Columns, RootPid;
+static short showall = TRUE, soption = FALSE, Uoption = FALSE;
+static char *name = "", *str = NULL, *Progname;
+static long ipid = -1;
+static char *input = NULL;
 
-int atLdepth=0;    /* LOPTION - track how deep in the print chain we are */
-int maxLdepth=100; /* LOPTION - will be changed by -l n option */
-int compress = FALSE;
+static int atLdepth=0;    /* LOPTION - track how deep in the print chain we are */
+static int maxLdepth=100; /* LOPTION - will be changed by -l n option */
+static int compress = FALSE;
 
 #ifdef DEBUG
-int debug = FALSE;
+static int debug = FALSE;
 #endif
 
 struct Proc {
@@ -221,7 +227,7 @@ struct Proc {
 } *P;
 
 #ifdef UID2USER
-void uid2user(uid_t uid, char *name, int len) {
+static void uid2user(uid_t uid, char *name, int len) {
 #define NUMUN 128
   static struct un_ {
     uid_t uid;
@@ -263,7 +269,7 @@ void uid2user(uid_t uid, char *name, int len) {
 #endif
 
 #if defined(_AIX) || defined(___AIX)	/* AIX 3.x / 4.x */
-int GetProcessesDirect(void) {
+static int GetProcessesDirect(void) {
   int i, nproc, maxnproc = 1024;
   
   struct ProcInfo *proc;
@@ -377,7 +383,7 @@ int GetProcessesDirect(void) {
 #endif /* _AIX */
 
 #ifdef __linux
-int GetProcessesDirect(void) {
+static int GetProcessesDirect(void) {
   glob_t globbuf;
   unsigned int i, j;
   
@@ -441,7 +447,7 @@ int GetProcessesDirect(void) {
 }
 #endif /* __linux */
 
-int GetProcesses(void) {
+static int GetProcesses(void) {
   FILE *tn;
   int i = 0;
   char line[MAXLINE], command[] = PSCMD;
@@ -547,7 +553,7 @@ int GetProcesses(void) {
   return i;
 }
 
-int GetRootPid(void) {
+static int GetRootPid(void) {
   int me;
   for (me = 0; me < NProc; me++) {
     if (P[me].pid == 1) return P[me].pid;
@@ -605,7 +611,7 @@ int get_pid_index(long pid) {
 
 #define EXIST(idx) ((idx) != -1)
 
-void MakeTree(void) {
+static void MakeTree(void) {
   /* Build the process hierarchy. Every process marks itself as first child
    * of it's parent or as sister of first child of it's parent */
   int me;  
@@ -625,14 +631,14 @@ void MakeTree(void) {
   }
 }
 
-void MarkChildren(int me) {
+static void MarkChildren(int me) {
   int child;
   P[me].print = TRUE;
   for (child = P[me].child; EXIST(child); child = P[child].sister)
     MarkChildren(child);
 }
 
-void MarkProcs(void) {
+static void MarkProcs(void) {
   int me;
   for (me = 0; me < NProc; me++) {
     if (showall) {
@@ -676,7 +682,7 @@ void MarkProcs(void) {
   }
 }
 
-void DropProcs(void) {
+static void DropProcs(void) {
   int me;
   for (me = 0; me < NProc; me++) if (P[me].print) {
     int child, sister;
@@ -691,7 +697,7 @@ void DropProcs(void) {
   }
 }
 
-void PrintTree(int idx, const char *head) {
+static void PrintTree(int idx, const char *head) {
   char nhead[MAXLINE], out[4 * MAXLINE], thread[16] = {'\0'};
   int child;
   
@@ -749,7 +755,7 @@ void PrintTree(int idx, const char *head) {
 
 }
 
-void Usage(void) {
+static void Usage(void) {
   fprintf(stderr,
 	  "%s\n"
 	  "%s\n\n"
@@ -997,6 +1003,9 @@ int snprintf (char *s, int namesiz, char *format, ...) {
 
 /*
  * $Log: pstree.c,v $
+ * Revision 2.37  2015/04/20 10:15:29  fred
+ * Summary: V2.36
+ *
  * Revision 2.36  2013-04-12 11:47:03+02  fred
  * Some processes like apache under a recent Linux were listed with UID
  * root instead of the correct UID, as they use setuid(). We now read the
