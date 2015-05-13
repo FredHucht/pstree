@@ -3,12 +3,12 @@
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.37 2015/04/20 10:15:29 fred Exp fred $
+ * $Id: pstree.c,v 2.38 2015/04/20 14:50:42 fred Exp fred $
  */
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.37 $ by Fred Hucht (C) 1993-2015",
+  "@(#)pstree $Revision: 2.38 $ by Fred Hucht (C) 1993-2015",
   "@(#)EMail: fred AT thp.uni-due.de",
-  "$Id: pstree.c,v 2.37 2015/04/20 10:15:29 fred Exp fred $"
+  "$Id: pstree.c,v 2.38 2015/04/20 14:50:42 fred Exp fred $"
 };
 
 #define MAXLINE 8192
@@ -595,8 +595,8 @@ void FixZombies(void) {
       P[me].pid = -1;
 #ifdef DEBUG
       if (debug) fprintf(stderr,
-			 "fixed zombie %s with ppid %d\n",
-			 P[me].cmd, P[me].ppid);
+			 "fixed zombie %s with ppid %ld\n",
+			 P[me].cmd, (long)P[me].ppid);
 #endif
     }
   }
@@ -900,12 +900,12 @@ int main(int argc, char **argv) {
     Columns = atoi((char*)termdef(fileno(stdout),'c'));
 #elif defined(TIOCGWINSZ)
     struct winsize winsize;
-    ioctl(fileno(stdout), TIOCGWINSZ, &winsize);
-    Columns = winsize.ws_col;
+    if ( ioctl(fileno(stdout), TIOCGWINSZ, &winsize) != -1 )
+      Columns = winsize.ws_col;
 #elif defined(TIOCGSIZE)
     struct ttysize ttysize;
-    ioctl(fileno(stdout), TIOCGSIZE, &ttysize);
-    Columns = ttysize.ts_cols;
+    if ( ioctl(fileno(stdout), TIOCGSIZE, &ttysize) != -1 )
+      Columns = ttysize.ts_cols;
 #else
     char *env = getenv("COLUMNS");
     Columns = env ? atoi(env) : 80;
@@ -1003,6 +1003,9 @@ int snprintf (char *s, int namesiz, char *format, ...) {
 
 /*
  * $Log: pstree.c,v $
+ * Revision 2.38  2015/04/20 14:50:42  fred
+ * Summary: Added patch for AIX61 contributed by Michael Staats
+ *
  * Revision 2.37  2015/04/20 10:15:29  fred
  * Summary: V2.36
  *
