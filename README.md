@@ -2,7 +2,7 @@
 ## Introduction
 `pstree` is a small program that shows the process listing (`ps`) as a tree (as the name implies...). It has several options to make selection criteria and to change the output style.
 
-It should compile under most Un*xes, tested are AIX, Linux, HP-UX, A/UX, SunOS, Solaris, (Free|Open|Net)BSD, MacOSX/Darwin, and others.
+It should compile under most Un*xes, tested are AIX, Linux, HP-UX, A/UX, SunOS, Solaris, (Free|Open|Net)BSD, MacOSX/Darwin/macOS, and many others.
 
 Under AIX & Linux, pstree directly reads the process table using `getproc()`/`getuser()` or the `/proc` file system. Under all other Un*xes, `pstree` reads the output of `/bin/ps`.
 
