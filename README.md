@@ -1,1 +1,61 @@
 # pstree
+## Introduction
+   This is pstree V 2.39. It is a small program that shows the process (ps)
+   listing as a tree (as the name implies...). It has several options
+   to make selection criteria and to change the output style.
+
+   It should compile under most Un*xes, tested are AIX, Linux, HP-UX,
+   A/UX, SunOS, Solaris, (Free|Open|Net)BSD, MacOSX/Darwin, and others.
+
+   Under AIX & Linux, pstree directly reads the process table using
+   getproc()/getuser() or the /proc file system. Under all other
+   Un*xes, pstree reads the output of /bin/ps.
+
+   If process group information is available, process group leaders
+   are marked with a '=' instead of '-'.
+
+## Compilation
+
+   Take an ANSI C compiler, eg., gcc, and just enter
+
+     $ [g]cc -O -o pstree pstree.c
+
+   There is no Makefile.
+
+## Installation
+
+   Put pstree into appropriate bindir, e.g., 
+   
+    /usr/local/bin.
+    
+   Optionally, put the manpage pstree.1 to, e.g., 
+   
+    /usr/local/share/man/man1.
+
+## Changes
+
+   See pstree.c
+   
+## Usage
+
+~~~
+$ ./pstree -?
+pstree $Revision: 2.39 $ by Fred Hucht (C) 1993-2015
+EMail: fred AT thp.uni-due.de
+
+Usage: pstree [-f file] [-g n] [-l n] [-u user] [-U] [-s string] [-p pid] [-w] [pid ...]
+   -f file   read input from <file> (- is stdin) instead of running
+             "ps -eo uid,pid,ppid,pgid,args"
+   -g n      use graphics chars for tree. n=1: IBM-850, n=2: VT100, n=3: UTF-8
+   -l n      print tree to n level deep
+   -u user   show only branches containing processes of <user>
+   -U        don't show branches containing only root processes
+   -s string show only branches containing process with <string> in commandline
+   -p pid    show only branches containing process <pid>
+   -w        wide output, not truncated to window width
+   pid ...   process ids to start from, default is 1 (probably init)
+
+Process group leaders are marked with '='.
+~~~
+
+Have fun, Fred
