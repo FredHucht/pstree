@@ -2,13 +2,10 @@
  *	EMail: fred AT thp.uni-due.de				*
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
- *
- * $Id: pstree.c,v 2.39 2015/05/13 12:24:47 fred Exp fred $
  */
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.39 $ by Fred Hucht (C) 1993-2022",
-  "@(#)EMail: fred AT thp.uni-due.de",
-  "$Id: pstree.c,v 2.39 2015/05/13 12:24:47 fred Exp fred $"
+  "@(#)pstree $Revision: 2.40 $ by Fred Hucht (C) 1993-2022",
+  "@(#)EMail: fred AT thp.uni-due.de"
 };
 
 #define MAXLINE 8192
@@ -892,7 +889,7 @@ int main(int argc, char **argv) {
 #else
   NProc = GetProcesses();
 #endif
-  
+
 #ifdef ZOMBIES_HAVE_PID_0
   FixZombies();
 #endif
@@ -1031,6 +1028,9 @@ int snprintf (char *s, int namesiz, char *format, ...) {
 
 /*
  * $Log: pstree.c,v $
+ * Revision 2.40  2022/07/11 17:34:43  fred                                                                           
+ * Added DragonFly support by Krzysztof Piecuch <piecuch AT kpiecuch.pl>                                              
+ *                                                                                                                    
  * Revision 2.39  2015/05/13 12:24:47  fred
  * Summary: Don't use uninitialized structs when ioctl() fails, e.g. if run with stdout
  * redirected. Problem reported by Jan Stary.
