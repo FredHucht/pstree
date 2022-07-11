@@ -1,14 +1,14 @@
-/*	This is pstree written by Fred Hucht (c) 1993-2015	*
+/*	This is pstree written by Fred Hucht (c) 1993-2022	*
  *	EMail: fred AT thp.uni-due.de				*
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  *
- * $Id: pstree.c,v 2.38 2015/04/20 14:50:42 fred Exp fred $
+ * $Id: pstree.c,v 2.39 2015/05/13 12:24:47 fred Exp fred $
  */
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.38 $ by Fred Hucht (C) 1993-2015",
+  "@(#)pstree $Revision: 2.39 $ by Fred Hucht (C) 1993-2022",
   "@(#)EMail: fred AT thp.uni-due.de",
-  "$Id: pstree.c,v 2.38 2015/04/20 14:50:42 fred Exp fred $"
+  "$Id: pstree.c,v 2.39 2015/05/13 12:24:47 fred Exp fred $"
 };
 
 #define MAXLINE 8192
@@ -69,19 +69,24 @@ extern getargs(struct ProcInfo *, int, char *, int);
 #  define PSVARS	&P[i].uid, &P[i].pid, &P[i].ppid, &P[i].pgid, P[i].cmd
 #  define PSVARSN	5
 /************************************************************************/
-#elif defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__APPLE__)
+#elif defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__APPLE__) || defined(__DragonFly__)
 /* NetBSD contributed by Gary D. Duzan <gary AT wheel.tiac.net>
  * FreeBSD contributed by Randall Hopper <rhh AT ct.picker.com> 
  * Darwin / Mac OS X patch by Yuji Yamano <yyamano AT kt.rim.or.jp>
  * wide output format fix for NetBSD by Jeff Brown <jabrown AT caida.org>
  * (Net|Open|Free)BSD & Darwin merged by Ralf Meyer <ralf AT thp.Uni-Duisburg.DE>
+ * DragonFlyBSD contributed by Krzysztof Piecuch <piecuch AT kpiecuch.pl>
  */
 #  define HAS_PGID
 #  define PSCMD 	"ps -axwwo user,pid,ppid,pgid,command"
 #  define PSFORMAT 	"%s %ld %ld %ld %[^\n]"
 #  define PSVARS	P[i].name, &P[i].pid, &P[i].ppid, &P[i].pgid, P[i].cmd
 #  define PSVARSN	5
-#  define ZOMBIES_HAVE_PID_0
+#  ifdef __DragonFly__
+#    define PARENT_CYCLE_PID_MINUS_ONE
+#  else
+#    define ZOMBIES_HAVE_PID_0
+#  endif
 /************************************************************************/
 #elif defined(sun) && (!defined(__SVR4)) /* Solaris 1.x */
 /* contributed by L. Mark Larsen <mlarsen AT ptdcs2.intel.com> */
@@ -603,6 +608,25 @@ void FixZombies(void) {
 }
 #endif
 
+#ifdef PARENT_CYCLE_PID_MINUS_ONE
+void FixParentCycle(void) {
+  int me, num = 0;
+  for (me = 0; me < NProc; me++) {
+    if (P[me].pid == -1) num++;
+  }
+  if (num > 1) for (me = 0; me < NProc; me++) {
+    if (P[me].pid == -1) {
+      P[me].pid -= num;
+      --num;
+#ifdef DEBUG
+      if (debug) fprintf(stderr,
+			 "changed process %s pid from -1 to %ld\n",
+			 P[me].cmd, (long)P[me].pid);
+#endif
+    }
+  }
+}
+#endif
 int get_pid_index(long pid) {
   int me;
   for (me = NProc - 1;me >= 0 && P[me].pid != pid; me--); /* Search process */
@@ -872,7 +896,11 @@ int main(int argc, char **argv) {
 #ifdef ZOMBIES_HAVE_PID_0
   FixZombies();
 #endif
-  
+
+#ifdef PARENT_CYCLE_PID_MINUS_ONE
+  FixParentCycle();
+#endif
+
   if (NProc == 0) {
     fprintf(stderr, "%s: No processes read.\n", Progname);
     exit(1);
@@ -1003,6 +1031,10 @@ int snprintf (char *s, int namesiz, char *format, ...) {
 
 /*
  * $Log: pstree.c,v $
+ * Revision 2.39  2015/05/13 12:24:47  fred
+ * Summary: Don't use uninitialized structs when ioctl() fails, e.g. if run with stdout
+ * redirected. Problem reported by Jan Stary.
+ *
  * Revision 2.38  2015/04/20 14:50:42  fred
  * Summary: Added patch for AIX61 contributed by Michael Staats
  *
