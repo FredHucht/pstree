@@ -1,26 +1,23 @@
 # pstree
 ## Introduction
-   This is pstree V 2.39. It is a small program that shows the process (ps)
-   listing as a tree (as the name implies...). It has several options
+   `pstree` is a small program that shows the process 
+   listing (`ps`) as a tree (as the name implies...). It has several options
    to make selection criteria and to change the output style.
 
    It should compile under most Un*xes, tested are AIX, Linux, HP-UX,
    A/UX, SunOS, Solaris, (Free|Open|Net)BSD, MacOSX/Darwin, and others.
 
    Under AIX & Linux, pstree directly reads the process table using
-   getproc()/getuser() or the /proc file system. Under all other
-   Un*xes, pstree reads the output of /bin/ps.
-
-   If process group information is available, process group leaders
-   are marked with a '=' instead of '-'.
+   `getproc()`/`getuser()` or the `/proc` file system. Under all other
+   Un*xes, `pstree` reads the output of `/bin/ps`.
 
 ## Compilation
 
-   Take an ANSI C compiler, eg., gcc, and just enter
+   Take an ANSI C compiler, e.g., `gcc`, and just enter
 
      $ [g]cc -O -o pstree pstree.c
 
-   There is no Makefile.
+   There is no `Makefile`.
 
 ## Installation
 
@@ -28,19 +25,19 @@
    
     /usr/local/bin.
     
-   Optionally, put the manpage pstree.1 to, e.g., 
+   Optionally, put the manpage `pstree.1` to, e.g., 
    
     /usr/local/share/man/man1.
 
 ## Changes
 
-   See pstree.c
+   For changes up to v2.40, see end of `pstree.c`.
    
 ## Usage
 
 ~~~
 $ ./pstree -?
-pstree $Revision: 2.39 $ by Fred Hucht (C) 1993-2015
+pstree $Revision: 2.40 $ by Fred Hucht (C) 1993-2022
 EMail: fred AT thp.uni-due.de
 
 Usage: pstree [-f file] [-g n] [-l n] [-u user] [-U] [-s string] [-p pid] [-w] [pid ...]
