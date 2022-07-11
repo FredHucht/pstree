@@ -58,4 +58,10 @@ Usage: pstree [-f file] [-g n] [-l n] [-u user] [-U] [-s string] [-p pid] [-w] [
 Process group leaders are marked with '='.
 ~~~
 
+## History
+
+pstree was formerly available under 
+* ftp://ftp.thp.uni-due.de/pub/source/ (server down)
+* http://www.thp.uni-due.de/pstree/ (links to here now)
+
 Have fun, Fred
