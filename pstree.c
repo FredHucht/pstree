@@ -1,11 +1,11 @@
-/*	This is pstree written by Fred Hucht (c) 1993-2022	*
- *	EMail: fred AT thp.uni-due.de				*
+/*	This is pstree written by Fred Hucht (c) 1992-2022	*
+ *	E-Mail: fred AT thp.uni-due.de				*
  *	Feel free to copy and redistribute in terms of the	*
  * 	GNU public license. 					*
  */
 static char *WhatString[]= {
-  "@(#)pstree $Revision: 2.40 $ by Fred Hucht (C) 1993-2022",
-  "@(#)EMail: fred AT thp.uni-due.de"
+  "@(#)pstree $Revision: 2.40 $ by Fred Hucht (C) 1992-2022",
+  "@(#)E-Mail: fred AT thp.uni-due.de"
 };
 
 #define MAXLINE 8192
