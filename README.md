@@ -28,7 +28,7 @@ For changes up to v2.40, see end of `pstree.c`.
 
 ~~~
 $ ./pstree -?
-pstree $Revision: 2.40 $ by Fred Hucht (C) 1993-2022
+pstree $Revision: 2.40 $ by Fred Hucht (C) 1992-2022
 EMail: fred AT thp.uni-due.de
 
 Usage: pstree [-f file] [-g n] [-l n] [-u user] [-U] [-s string] [-p pid] [-w] [pid ...]
@@ -48,8 +48,10 @@ Process group leaders are marked with '='.
 
 ## History
 
-pstree was formerly available under 
-* ftp://ftp.thp.uni-due.de/pub/source/ (server down)
-* http://www.thp.uni-due.de/pstree/ (links to here now)
+`pstree` started as a shell script back in the 90s, the first C version is from 1992. Since 1994, the source was managed using RCS. Since 2022, it lives here on GitHub.
+
+`pstree` was formerly available under 
+* `ftp://ftp.thp.uni-due.de/pub/source/` (server down)
+* `http://www.thp.uni-due.de/pstree/` (server down)
 
 Have fun, Fred
