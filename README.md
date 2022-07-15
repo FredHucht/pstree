@@ -12,7 +12,7 @@ Take an ANSI C compiler, e.g., `gcc`, and just enter
 
     $ [g]cc -O -o pstree pstree.c
 
-There is no `Makefile`.
+Alternatively, enter `make`.
 
 ## Installation
 
